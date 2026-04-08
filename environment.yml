@@ -1,0 +1,15 @@
+name: index-env
+channels:
+  - defaults
+dependencies:
+  - numpy
+  - pandas
+  - conda-lock
+  - ipykernel
+  - seaborn
+  - geopandas
+  - openpyxl
+  - census
+  - fastparquet
+  - pyarrow
+prefix: /opt/anaconda3/envs/index-env
