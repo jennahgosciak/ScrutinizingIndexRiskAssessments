@@ -161,6 +161,22 @@ def zcta_tract_spatial_join(zcta_data, tract_data, method):
             on="zcta",
             how="right",
         )
+    elif method == "spatial_overlap":
+        print(f"Tract CRS: {tract_data.crs}")
+        print(f"ZCTA CRS: {zcta_data.crs}")
+        overlap = gpd.overlay(tract_data, zcta_data, how="intersection", make_valid=True)
+        assert (overlap['geometry'].is_valid).mean()
+        
+        overlap["area_overlap"] = overlap["geometry"].area
+        overlap = overlap.sort_values(
+            ["geoid", "area_overlap"], ascending=False
+        ).drop_duplicates(subset="geoid", keep="first")
+        xwalk = overlap[["geoid", "zcta"]]
+        mgd_data = zcta_data.drop(columns="geometry").merge(
+            xwalk, on="zcta", how="right"
+        )
+    else:
+        print(f"{method} not recognized!")
 
     print(f"Merged data size: {mgd_data.shape}")
     print(f"Tract data size: {tract_data.shape}")
