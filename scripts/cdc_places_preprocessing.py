@@ -107,6 +107,6 @@ def cdc_nta_cleaning(df, health_cols):
     assert (df[health_cdc_pct_cols].max() <= 1).all()
 
     df["avg_cdc_health_vars"] = (
-        df[health_cdc_pct_cols].max(axis=1, skipna=True).fillna(0)
+        df[health_cdc_pct_cols].mean(axis=1, skipna=True).fillna(0)
     )
     return df, health_cdc_pct_cols

@@ -170,6 +170,8 @@ pct_vars = [
     "pct_inpoverty_75over",
     "pct_hh_gt65",
     "pct_black",
+    "pct_over_75",
+    "nonwhite_nh_dec_pct"
 ]
 
 
@@ -203,7 +205,7 @@ def clean_acs_hvi(acs_gdf):
     acs_gdf_hvi = acs_gdf[census_cols_hvi].copy()
 
     # drop census tracts with 0 pop
-    acs_gdf_hvi = acs_gdf_hvi[acs_gdf_hvi["totalpop"] > 0]
+    acs_gdf_hvi = acs_gdf_hvi[acs_gdf_hvi["totalpop_dec"] > 0]
 
     check_missing_negative_value(acs_gdf_hvi)
 
