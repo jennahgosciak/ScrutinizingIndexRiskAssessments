@@ -85,7 +85,7 @@ def produce_all_specifications(df, health_zscore_cols):
         ["SURFACE_TEMP_z", "PCT_BLACK_POP_z", "avg_cdc_health_vars_z"],
         ["GREENSPACE_z", "PCT_HOUSEHOLDS_AC_z", "MEDIAN_INCOME_z"],
     )
-    print("Producing all (with averaged comorbiditeis)")
+    print("Producing all (with averaged comorbidities)")
     df["HVI_all_alt"] = produce_hvi_alternatives(
         df,
         [
@@ -114,7 +114,7 @@ def compute_risk_increase(df, vars):
     for var in vars:
         df[var + "_increase"] = (
             df["HVI_RANK"].astype(int) < df[var + "_q5"].astype(int)
-        ) & (df[var + "_q5"].isin([4, 5]))
+        ) & (df[var + "_q5"].isin([4, 5]).astype(int))
     return df
 
 
@@ -141,13 +141,13 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
 
         nyc_boros.plot(ax=axes[0], facecolor="none", edgecolor="gray", lw=0.3)
         nyc_boros.plot(ax=axes[1], facecolor="none", edgecolor="gray", lw=0.3)
+        plt.tight_layout()
         plt.savefig(
             f"./_figures/hvi_{var}.pdf",
             bbox_inches="tight",
             pad_inches=0,
             dpi=300,
         )
-        plt.tight_layout()
         plt.show()
 
         print(gdf.sort_values(var + "_rank", ascending=False)["ntaname"].head(10))
@@ -215,7 +215,7 @@ def prep_for_plot(df, vars, orig_var, id_var):
 
 
 def min_max_summary(df, id_vars, value_vars):
-    """Produce summary of of max/min values"""
+    """Produce summary of max/min values"""
     df_summary = (
         df[id_vars + value_vars]
         .melt(id_vars=id_vars)
@@ -260,3 +260,34 @@ def plot_nri(df, tract_geo, nyc_boros):
         "./_figures/nri_comparison.pdf", bbox_inches="tight", pad_inches=0, dpi=300
     )
     plt.show()
+
+
+def produce_scatter(df, orig_var, ax):
+    for line in df["variable"].unique():
+        df_temp = df[df["variable"] == line]
+        print(f"Plotting {line}")
+        print(f"df temp size: {df_temp.shape}")
+
+        sns.scatterplot(
+            x=df_temp[orig_var + "_rank"],
+            y=df_temp["rank"],
+            hue=df_temp["label"],
+            hue_order=[
+                "Decreased HVI score",
+                "Unchanged HVI score",
+                "Increased HVI score",
+            ],
+            style_order=[
+                "Decreased HVI score",
+                "Unchanged HVI score",
+                "Increased HVI score",
+            ],
+            palette=[colorblind_cmap[2], "#808080", colorblind_cmap[1]],
+            style=df_temp["label"],
+            markers=True,
+            legend=False,
+            s=40,
+            alpha=0.6,
+            linewidth=0,
+            ax=ax,
+        )
