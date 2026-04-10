@@ -164,9 +164,11 @@ def zcta_tract_spatial_join(zcta_data, tract_data, method):
     elif method == "spatial_overlap":
         print(f"Tract CRS: {tract_data.crs}")
         print(f"ZCTA CRS: {zcta_data.crs}")
-        overlap = gpd.overlay(tract_data, zcta_data, how="intersection", make_valid=True)
-        assert (overlap['geometry'].is_valid).mean()
-        
+        overlap = gpd.overlay(
+            tract_data, zcta_data, how="intersection", make_valid=True
+        )
+        assert (overlap["geometry"].is_valid).mean()
+
         overlap["area_overlap"] = overlap["geometry"].area
         overlap = overlap.sort_values(
             ["geoid", "area_overlap"], ascending=False
@@ -282,6 +284,9 @@ def load_nri_data(nyc_counties, download_nri_data=True):
         columns={
             "Heat Wave - Expected Annual Loss - Total": "HWAV_EALT",
             "Heat Wave - Hazard Type Risk Index Value": "HWAV_EALTxSVIxRESL",
+            "Heat Wave - Expected Annual Loss Rate - National Percentile": "HWAV_EALT_NatlPct",
+            "Heat Wave - Hazard Type Risk Index Score": "HWAV_Score",
+            "Heat Wave - Hazard Type Risk Index Rating": "HWAV_Rating",
         }
     )
     nri_data["HWAV_EALT_rank"], nri_data["HWAV_EALT_q5"] = custom_qcut_function(
@@ -291,6 +296,14 @@ def load_nri_data(nyc_counties, download_nri_data=True):
         custom_qcut_function(nri_data["HWAV_EALTxSVIxRESL"])
     )
     return nri_data
+
+
+def load_uri():
+    """Load URI data via URL"""
+    url = "https://services1.arcgis.com/8cuieNI8NbqQZQVJ/arcgis/rest/services/NTA_URI_Data_View_3/FeatureServer/1//query?where=OBJECTID%3E0&objectIds=&geometry=&geometryType=esriGeometryEnvelope&inSR=&spatialRel=esriSpatialRelIntersects&resultType=none&distance=0.0&units=esriSRUnit_Meter&outDistance=&relationParam=&returnGeodetic=false&outFields=*&returnGeometry=true&returnCentroid=false&returnEnvelope=false&featureEncoding=esriDefault&multipatchOption=xyFootprint&maxAllowableOffset=&geometryPrecision=&outSR=&defaultSR=&datumTransformation=&applyVCSProjection=false&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnExtentOnly=false&returnQueryGeometry=false&returnDistinctValues=false&cacheHint=false&collation=&orderByFields=&groupByFieldsForStatistics=&returnAggIds=false&outStatistics=&having=&resultOffset=&resultRecordCount=&returnZ=false&returnM=false&returnTrueCurves=false&returnExceededLimitFeatures=true&quantizationParameters=&sqlFormat=none&f=pgeojson&token="
+    r = requests.get(url)
+    df_uri = r.json()
+    return gpd.GeoDataFrame.from_features(df_uri, crs=4326).to_crs(2263)
 
 
 ########################
