@@ -1,14 +1,21 @@
 import pandas as pd
 import numpy as np
 import seaborn as sns
+import itertools
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 from scripts.utils import *
 
 # Define for plotting
 colorblind_cmap = sns.color_palette("colorblind", 3).as_hex()
 
+#############
+# HVI Replication Functions
+###############
+
 
 def produce_hvi_alternatives(df, additive_factors, subtracted_factors):
+    """Produce simple HVI additive formula (adding and subtracting relevant inputs)"""
     assert min([1 if "_z" in x else 0 for x in additive_factors]) == 1
     assert min([1 if "_z" in x else 0 for x in subtracted_factors]) == 1
     return df[additive_factors].sum(axis=1) - df[subtracted_factors].sum(axis=1)
@@ -41,8 +48,8 @@ def rank_all_specifications(df, nta_geo, alt_specifications, rank_method):
 
 
 def produce_all_specifications(df, health_zscore_cols):
+    """Produce all alternative specifications as enumerated in the main paper"""
     """Produce all specifications via formula"""
-
     print("------------------------")
     print("Producing all specifications")
     print("Reproducing original")
@@ -82,7 +89,7 @@ def produce_all_specifications(df, health_zscore_cols):
     print("Producing comorbidities (with average)")
     df["HVI_health_alt"] = produce_hvi_alternatives(
         df,
-        ["SURFACE_TEMP_z", "PCT_BLACK_POP_z", "avg_cdc_health_vars_z"],
+        ["SURFACE_TEMP_z", "PCT_BLACK_POP_z", "max_cdc_health_vars_z"],
         ["GREENSPACE_z", "PCT_HOUSEHOLDS_AC_z", "MEDIAN_INCOME_z"],
     )
     print("Producing all (with averaged comorbidities)")
@@ -93,7 +100,7 @@ def produce_all_specifications(df, health_zscore_cols):
             "PCT_BLACK_POP_z",
             "pct_inpoverty_z",
             "pct_over65_z",
-            "avg_cdc_health_vars_z",
+            "max_cdc_health_vars_z",
         ],
         ["GREENSPACE_z", "PCT_HOUSEHOLDS_AC_z", "MEDIAN_INCOME_z"],
     )
@@ -116,6 +123,20 @@ def compute_risk_increase(df, vars):
             df["HVI_RANK"].astype(int) < df[var + "_q5"].astype(int)
         ) & (df[var + "_q5"].isin([4, 5]).astype(int))
     return df
+
+
+def summarize_agreement(df, vars, latex=False):
+    """Producing agreement summaries for alternative specifications compard to true values"""
+    for var in vars:
+        df[var + "_match"] = df[var + "_q5"] == df["HVI_raw_q5"]
+
+    agreement_summary = df[[x + "_match" for x in vars]].mean() * 100
+
+    if latex == True:
+        print(agreement_summary.round(2).to_latex())
+    else:
+        print(agreement_summary)
+    return agreement_summary
 
 
 def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
@@ -291,3 +312,64 @@ def produce_scatter(df, orig_var, ax):
             linewidth=0,
             ax=ax,
         )
+
+
+########################
+# Check Sensitivity of Results
+# For Selecting Health Columns
+########################
+
+
+def test_sensitivity_health_specification(
+    df, health_cols, rank_method, correlation_method
+):
+    """ "For any combination of health columns, produce rankings and quintiles"""
+    df["HVI_health_sens"] = produce_hvi_alternatives(
+        df,
+        ["SURFACE_TEMP_z", "PCT_BLACK_POP_z"] + list(health_cols),
+        ["GREENSPACE_z", "PCT_HOUSEHOLDS_AC_z", "MEDIAN_INCOME_z"],
+    )
+
+    df["HVI_health_sens_rank"], df["HVI_health_sens_q5"] = custom_qcut_function(
+        df["HVI_health_sens"], method=rank_method
+    )
+
+    rank_corr = (
+        df[["HVI_raw_rank", "HVI_health_sens_rank"]]
+        .corr(method=correlation_method)
+        .iloc[0, 1]  # extract relevant correlation value
+    )
+    q5_corr = (
+        df[["HVI_raw_q5", "HVI_health_sens_q5"]]
+        .corr(method=correlation_method)
+        .iloc[0, 1]  # extract relevant correlation value
+    )
+    return rank_corr, q5_corr
+
+
+def health_specification_correlations(df, health_cols, rank_method, correlation_method):
+    """Produce all possible ranking- and quintile-based correlations"""
+    # create all combinations of health cols
+    health_cols_combinations = []
+    for i in range(1, len(health_cols) + 1):
+        health_cols_combinations += itertools.combinations(health_cols, r=i)
+
+    corr_vals = []
+    q5_corr_vals = []
+    for col in tqdm(health_cols_combinations):
+        rank_corr, q5_corr = test_sensitivity_health_specification(
+            df, col, rank_method, correlation_method
+        )
+        corr_vals += [rank_corr]
+        q5_corr_vals += [q5_corr]
+    return corr_vals, q5_corr_vals, health_cols_combinations
+
+
+def print_health_cols_corr(corr_vals):
+    """Print average, minimum, and maxium values for rankings"""
+    print(f"Average value: {round(np.mean(corr_vals), 4)}")
+    print(f"Minimum: {round(np.min(corr_vals), 4)}")
+    print(f"Maximum: {round(np.max(corr_vals), 4)}")
+    print(
+        f"Median and IQR: {round(np.quantile(corr_vals, 0.5), 4)} ({round(np.quantile(corr_vals, 0.25), 4)}-{round(np.quantile(corr_vals, 0.75), 4)})"
+    )

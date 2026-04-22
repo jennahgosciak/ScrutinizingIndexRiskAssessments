@@ -92,6 +92,7 @@ def cdc_nta_cleaning(df, health_cols):
     for var in health_cols:
         if "totalpop" not in var.lower():
             df[var.replace("_total", "_pct")] = df[var] / df["totalpop18plus"]
+
     df["data_value_HIGHCHOL_pct"] = (
         df["data_value_HIGHCHOL_total"] / df["data_value_CHOLSCREEN_total"]
     )
@@ -106,7 +107,7 @@ def cdc_nta_cleaning(df, health_cols):
     assert (df[health_cdc_pct_cols].min() >= 0).all()
     assert (df[health_cdc_pct_cols].max() <= 1).all()
 
-    df["avg_cdc_health_vars"] = (
-        df[health_cdc_pct_cols].mean(axis=1, skipna=True).fillna(0)
+    df["max_cdc_health_vars"] = (
+        df[health_cdc_pct_cols].max(axis=1, skipna=True).fillna(0)
     )
     return df, health_cdc_pct_cols

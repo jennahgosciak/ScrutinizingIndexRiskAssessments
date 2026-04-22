@@ -70,6 +70,7 @@ def load_modzcta(open_data_path):
         f"{open_data_path}/pri4-ifjk.geojson?$limit=100000"
     ).to_crs(2263)
     nyc_modzcta["modzcta"] = nyc_modzcta["modzcta"].astype(int)
+    print(f"There are {nyc_modzcta.shape[0]} unique MODZCTAs")
     return nyc_modzcta
 
 
@@ -101,22 +102,51 @@ def load_geospatial(open_data_path, nyc_counties):
 
     # load zcta data
     print("------------------------")
-    print("Loading ZCTA data")
+    print("Loading 2020 and 2010 ZCTA data")
     zcta_geo = gpd.read_file(
         "https://www2.census.gov/geo/tiger/TIGER2020/ZCTA520/tl_2020_us_zcta520.zip"
     ).to_crs(2263)
+
+    zcta_2010_geo = gpd.read_file(
+        "https://www2.census.gov/geo/tiger/TIGER2010/ZCTA5/2010/tl_2010_36_zcta510.zip"
+    ).to_crs(2263)
+
     zcta_geo = zcta_geo.rename(columns={"ZCTA5CE20": "zcta"})
+    zcta_2010_geo = zcta_2010_geo.rename(columns={"ZCTA5CE10": "zcta"})
 
     county_relfile, _ = load_zcta_rel_files(nyc_counties)
     county_relfile["GEOID_ZCTA5_20"] = (
         county_relfile["GEOID_ZCTA5_20"].astype(str).str.replace(".0", "")
     )
     zcta_geo = zcta_geo[zcta_geo["GEOID20"].isin(county_relfile["GEOID_ZCTA5_20"])]
-    zcta_count = zcta_geo["zcta"].unique().shape[0]
-    print(f"There are {zcta_count} unique ZCTAs")
-    if (zcta_geo["zcta"] != zcta_geo["GEOID20"]).all():
-        raise Exception("zcta column does not match GEOID20 column")
 
+    # cleaning ZCTA 2010
+    df_zcta_rel_file_county = pd.read_csv(
+        "https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_county_rel_10.txt"
+    )
+    df_zcta_rel_file_county = df_zcta_rel_file_county[
+        df_zcta_rel_file_county["GEOID"].isin(nyc_counties)
+    ]
+    df_zcta_rel_file_county["ZCTA5"] = (
+        df_zcta_rel_file_county["ZCTA5"]
+        .astype(str)
+        .str.pad(width=5, side="left", fillchar="0")
+    )
+    zcta_2010_geo = zcta_2010_geo[
+        zcta_2010_geo["zcta"].isin(df_zcta_rel_file_county["ZCTA5"])
+    ]
+    # remove some areas that are technically naussau
+    zcta_2010_geo = zcta_2010_geo[
+        ~zcta_2010_geo["zcta"].isin(["11001", "11040", "11003"])
+    ]
+
+    zcta_count = zcta_geo["zcta"].unique().shape[0]
+    print(f"There are {zcta_count} unique ZCTAs in 2020")
+
+    zcta_2010_count = zcta_2010_geo["zcta"].unique().shape[0]
+    print(f"There are {zcta_count} unique ZCTAs in 2010")
+    if (zcta_geo["zcta"] != zcta_geo["GEOID20"]).all():
+        raise Exception("zcta column does not match GEOID column")
 
     # load nyc tracts
     print("------------------------")
@@ -132,7 +162,7 @@ def load_geospatial(open_data_path, nyc_counties):
     print("Loading NYC Boroughs")
     boros_geo = gpd.read_file(f"{open_data_path}/gthc-hcne.geojson").to_crs(2263)
     print(f"There are {boros_geo['borocode'].unique().shape[0]} unique boroughs")
-    return (nta_geo, zcta_geo, tract_geo, boros_geo)
+    return (nta_geo, zcta_geo, zcta_2010_geo, tract_geo, boros_geo)
 
 
 def produce_tract_points(tract_geo, method="centroid"):
@@ -166,9 +196,11 @@ def zcta_tract_spatial_join(zcta_data, tract_data, method):
     elif method == "spatial_overlap":
         print(f"Tract CRS: {tract_data.crs}")
         print(f"ZCTA CRS: {zcta_data.crs}")
-        overlap = gpd.overlay(tract_data, zcta_data, how="intersection", make_valid=True)
-        assert (overlap['geometry'].is_valid).mean()
-        
+        overlap = gpd.overlay(
+            tract_data, zcta_data, how="intersection", make_valid=True
+        )
+        assert (overlap["geometry"].is_valid).mean()
+
         overlap["area_overlap"] = overlap["geometry"].area
         overlap = overlap.sort_values(
             ["geoid", "area_overlap"], ascending=False
@@ -277,7 +309,9 @@ def load_nri_data(nyc_counties, download_nri_data=True):
     nri_data["geoid"] = nri_data["State-County FIPS Code"].astype(str) + nri_data[
         "Census Tract"
     ].astype(str).str.pad(width=6, fillchar="0", side="left")
-    print(f"There are {nri_data['geoid'].unique().shape[0]} unique ZCTAs in the data")
+    print(
+        f"There are {nri_data['geoid'].unique().shape[0]} unique census tracts in the data"
+    )
 
     print("Renaming columns and ranking")
     nri_data = nri_data.rename(
@@ -285,8 +319,8 @@ def load_nri_data(nyc_counties, download_nri_data=True):
             "Heat Wave - Expected Annual Loss - Total": "HWAV_EALT",
             "Heat Wave - Hazard Type Risk Index Value": "HWAV_EALTxSVIxRESL",
             "Heat Wave - Expected Annual Loss Rate - National Percentile": "HWAV_EALT_NatlPct",
-            "Heat Wave - Hazard Type Risk Index Score" : "HWAV_Score",
-            "Heat Wave - Hazard Type Risk Index Rating" : "HWAV_Rating",
+            "Heat Wave - Hazard Type Risk Index Score": "HWAV_Score",
+            "Heat Wave - Hazard Type Risk Index Rating": "HWAV_Rating",
         }
     )
     nri_data["HWAV_EALT_rank"], nri_data["HWAV_EALT_q5"] = custom_qcut_function(
@@ -297,12 +331,14 @@ def load_nri_data(nyc_counties, download_nri_data=True):
     )
     return nri_data
 
+
 def load_uri():
     """Load URI data via URL"""
     url = "https://services1.arcgis.com/8cuieNI8NbqQZQVJ/arcgis/rest/services/NTA_URI_Data_View_3/FeatureServer/1//query?where=OBJECTID%3E0&objectIds=&geometry=&geometryType=esriGeometryEnvelope&inSR=&spatialRel=esriSpatialRelIntersects&resultType=none&distance=0.0&units=esriSRUnit_Meter&outDistance=&relationParam=&returnGeodetic=false&outFields=*&returnGeometry=true&returnCentroid=false&returnEnvelope=false&featureEncoding=esriDefault&multipatchOption=xyFootprint&maxAllowableOffset=&geometryPrecision=&outSR=&defaultSR=&datumTransformation=&applyVCSProjection=false&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnExtentOnly=false&returnQueryGeometry=false&returnDistinctValues=false&cacheHint=false&collation=&orderByFields=&groupByFieldsForStatistics=&returnAggIds=false&outStatistics=&having=&resultOffset=&resultRecordCount=&returnZ=false&returnM=false&returnTrueCurves=false&returnExceededLimitFeatures=true&quantizationParameters=&sqlFormat=none&f=pgeojson&token="
     r = requests.get(url)
     df_uri = r.json()
     return gpd.GeoDataFrame.from_features(df_uri, crs=4326).to_crs(2263)
+
 
 ########################
 # Load CDC Places Data

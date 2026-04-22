@@ -171,7 +171,7 @@ pct_vars = [
     "pct_hh_gt65",
     "pct_black",
     "pct_over_75",
-    "nonwhite_nh_dec_pct"
+    "nonwhite_nh_dec_pct",
 ]
 
 
