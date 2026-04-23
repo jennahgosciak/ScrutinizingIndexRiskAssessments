@@ -119,6 +119,7 @@ def load_geospatial(open_data_path, nyc_counties):
         county_relfile["GEOID_ZCTA5_20"].astype(str).str.replace(".0", "")
     )
     zcta_geo = zcta_geo[zcta_geo["GEOID20"].isin(county_relfile["GEOID_ZCTA5_20"])]
+    zcta_geo = zcta_geo[~zcta_geo["zcta"].isin(["11001", "11040", "11003"])]
 
     # cleaning ZCTA 2010
     df_zcta_rel_file_county = pd.read_csv(
