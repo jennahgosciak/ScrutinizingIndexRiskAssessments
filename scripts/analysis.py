@@ -143,6 +143,7 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
     """Produce maps corresponding to increases in risk (risk scores of 4 or 5)"""
     vars = [x for x in vars if x != "HVI_raw"]
     for i, var in enumerate(vars):
+        gdf[var + "_q5"] = gdf[var + "_q5"].astype(str).str.replace(".0", "")
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
         gdf.plot(
             column=var + "_q5",

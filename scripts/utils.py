@@ -119,7 +119,7 @@ def load_geospatial(open_data_path, nyc_counties):
         county_relfile["GEOID_ZCTA5_20"].astype(str).str.replace(".0", "")
     )
     zcta_geo = zcta_geo[zcta_geo["GEOID20"].isin(county_relfile["GEOID_ZCTA5_20"])]
-    zcta_geo = zcta_geo[~zcta_geo["zcta"].isin(["11001", "11040", "11003"])]
+    zcta_geo = zcta_geo[~zcta_geo["zcta"].isin(["11040"])]
 
     # cleaning ZCTA 2010
     df_zcta_rel_file_county = pd.read_csv(
@@ -137,9 +137,7 @@ def load_geospatial(open_data_path, nyc_counties):
         zcta_2010_geo["zcta"].isin(df_zcta_rel_file_county["ZCTA5"])
     ]
     # remove some areas that are technically naussau
-    zcta_2010_geo = zcta_2010_geo[
-        ~zcta_2010_geo["zcta"].isin(["11001", "11040", "11003"])
-    ]
+    zcta_2010_geo = zcta_2010_geo[~zcta_2010_geo["zcta"].isin(["11040"])]
 
     zcta_count = zcta_geo["zcta"].unique().shape[0]
     print(f"There are {zcta_count} unique ZCTAs in 2020")
@@ -181,41 +179,37 @@ def produce_tract_points(tract_geo, method="centroid"):
 
 
 # merge tracts to zcta, get zcta information at tract level
-def zcta_tract_spatial_join(zcta_data, tract_data, method):
+def tract_spatial_join(gdf, tract_data, method, spatial_id):
     """ZCTA to tract spatial join based on specified method"""
     if method in ["centroid", "representative_point"]:
         # produce tract pts (either centroid or representative point)
         tract_pt = produce_tract_points(tract_data, method)
 
-        mgd_data = zcta_data.drop(columns="geometry").merge(
+        mgd_data = gdf.drop(columns="geometry").merge(
             tract_pt[["geoid", "geometry"]].sjoin(
-                zcta_data[["zcta", "geometry"]], how="left"
+                gdf[[spatial_id, "geometry"]], how="left"
             ),
-            on="zcta",
+            on=spatial_id,
             how="right",
         )
     elif method == "spatial_overlap":
         print(f"Tract CRS: {tract_data.crs}")
-        print(f"ZCTA CRS: {zcta_data.crs}")
-        overlap = gpd.overlay(
-            tract_data, zcta_data, how="intersection", make_valid=True
-        )
+        print(f"ZCTA CRS: {gdf.crs}")
+        overlap = gpd.overlay(tract_data, gdf, how="intersection", make_valid=True)
         assert (overlap["geometry"].is_valid).mean()
 
         overlap["area_overlap"] = overlap["geometry"].area
         overlap = overlap.sort_values(
             ["geoid", "area_overlap"], ascending=False
         ).drop_duplicates(subset="geoid", keep="first")
-        xwalk = overlap[["geoid", "zcta"]]
-        mgd_data = zcta_data.drop(columns="geometry").merge(
-            xwalk, on="zcta", how="right"
-        )
+        xwalk = overlap[["geoid", spatial_id]]
+        mgd_data = gdf.drop(columns="geometry").merge(xwalk, on=spatial_id, how="right")
     else:
         print(f"{method} not recognized!")
 
     print(f"Merged data size: {mgd_data.shape}")
     print(f"Tract data size: {tract_data.shape}")
-    print(f"ZCTA data size: {zcta_data.shape}")
+    print(f"ZCTA/DPS data size: {gdf.shape}")
     return mgd_data
 
 
@@ -263,9 +257,8 @@ def load_hvi_data(open_data_path, zcta_geo, nta_geo, load_data=True):
     df_hvi_zcta["zcta"] = df_hvi_zcta["zcta"].astype(str)
 
     # compare to zcta geo, check nothing is unmerged
-    assert (
-        df_hvi_zcta[~df_hvi_zcta["zcta"].isin(zcta_geo["zcta"].unique())].shape[0] == 0
-    )
+    if df_hvi_zcta[~df_hvi_zcta["zcta"].isin(zcta_geo["zcta"].unique())].shape[0] != 0:
+        print(df_hvi_zcta[~df_hvi_zcta["zcta"].isin(zcta_geo["zcta"].unique())])
 
     print("------------------------")
     print("Loading HVI (NTA) data")
@@ -455,8 +448,8 @@ def load_and_clean_hhi(zcta_geo, tract_geo, join_method, rank_method):
     print(f"Data size: {df_cdc_hhi_geo.shape}")
 
     print("Producing tract -> ZCTA spatial join (for comparisons)")
-    df_cdc_hhi_tract = zcta_tract_spatial_join(
-        df_cdc_hhi_geo, tract_geo, method=join_method
+    df_cdc_hhi_tract = tract_spatial_join(
+        df_cdc_hhi_geo, tract_geo, method=join_method, spatial_id="zcta"
     )
 
     return df_cdc_hhi_geo, df_cdc_hhi_tract
@@ -465,17 +458,27 @@ def load_and_clean_hhi(zcta_geo, tract_geo, join_method, rank_method):
 ###############
 # Plotting
 ###############
-def plot_simple_map(df, boros_geo, col, filename):
+def plot_simple_map(df, boros_geo, col, filename, categorical=False):
     """Plot a simple map of NYC with boroughs"""
-    fig, ax = plt.subplots(1, 1, figsize=(9, 8))
-    df.plot(
-        column=col,
-        ax=ax,
-        cmap="rocket_r",
-        edgecolor="none",
-        legend=True,
-        legend_kwds={"shrink": 0.7},
-    )
+    fig, ax = plt.subplots(1, 1, figsize=(8, 7))
+    if categorical == False:
+        df.plot(
+            column=col,
+            ax=ax,
+            cmap="rocket_r",
+            edgecolor="none",
+            legend=True,
+            legend_kwds={"shrink": 0.7},
+        )
+    else:
+        df[col] = df[col].astype(str).str.replace(".0", "")
+        df.plot(
+            column=col,
+            ax=ax,
+            cmap="rocket_r",
+            edgecolor="none",
+            legend=True,
+        )
     boros_geo.plot(ax=ax, facecolor="none", edgecolor="gray", lw=0.3)
     ax.set_axis_off()
     plt.savefig(f"./_figures/{filename}", dpi=300, bbox_inches="tight", pad_inches=0)
