@@ -1,6 +1,10 @@
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+import os
+
+from scripts.utils import *
+
 
 def create_grid(tract_ids, dates, spatial_id_name, date_var_name="week"):
     """Create evenly spaced grid of dates and tract IDs"""
@@ -26,10 +30,11 @@ def generate_weekly_date(df, date_var):
     )
     return df
 
+
 ##############################
 # 311 Complaints
 ##############################
-def load_311():
+def load_311(tract_geo):
     """Load 311 data on hydrant complaints"""
     print("------------------------")
     print("Loading 311 hydrant data via API")
@@ -38,14 +43,19 @@ def load_311():
         df_311 = pd.read_csv(
             "https://data.cityofnewyork.us/resource/erm2-nwe9.csv?$limit=100000000&$where=created_date>%272021-01-01%27%20and%20created_date<%272025-12-31%27%20and%20contains(descriptor,%27Hydrant%27)"
         )
-        print(f"311 data shape: {df_311.shape}")
+        print(f"Initial size of 311 data: {df_311.shape}")
         # drop duplicates via resolution description
         df_311["resolution_description"] = df_311["resolution_description"].fillna("")
         df_311 = df_311[~df_311["resolution_description"].str.contains("duplicate")]
-        
+        print(f"Data after dropping duplicates: {df_311.shape}")
+
         # print out resolution descriptions
-        df_311["resolution_description"].drop_duplicates().to_csv("resolution descriptions.csv")
-        print(f"Number of unique resolution descriptions: {df_311['resolution_description'].unique().shape[0]}")
+        df_311["resolution_description"].drop_duplicates().to_csv(
+            "resolution descriptions.csv"
+        )
+        print(
+            f"Number of unique resolution descriptions: {df_311['resolution_description'].unique().shape[0]}"
+        )
         print(f"311 data shape after dropping duplicates: {df_311.shape}")
         df_311 = generate_weekly_date(df_311, "created_date")
 
@@ -74,7 +84,8 @@ def load_311():
 
         # filter data after 2021
         gdf_311_tracts = gdf_311_tracts[
-            (gdf_311_tracts["year"] >= 2021) & (gdf_311_tracts["year"] <= 2025)
+            (gdf_311_tracts["year"] >= 2021)
+            & (gdf_311_tracts["year"] <= 2025)
             & (gdf_311_tracts["month"].isin([5, 6, 7, 8, 9]))
         ]
 
@@ -111,6 +122,7 @@ def create_311_grid(df, tract_geo, dec_gdf):
     )
     return gdf_311_summ
 
+
 ##############################
 # EMS PROCESSING
 ##############################
@@ -146,7 +158,11 @@ def create_ems_grid(df, zcta_geo):
     """Create grid of heat-related EMS incidents for each week 2021 - 2025, May - September"""
     df["month"] = df["week"].dt.month
     df["year"] = df["week"].dt.year
-    df = df[(df["year"] >= 2021) & (df["year"] <= 2025) & (df["month"].isin([5, 6, 7, 8, 9]))]
+    df = df[
+        (df["year"] >= 2021)
+        & (df["year"] <= 2025)
+        & (df["month"].isin([5, 6, 7, 8, 9]))
+    ]
     weekly_dates = pd.date_range(
         start=df["week"].min(), end=df["week"].max(), freq="W-MON"
     ).tolist()
@@ -161,11 +177,13 @@ def create_ems_grid(df, zcta_geo):
     )
     return df_ems_summ
 
+
 ##############################
 # DPS PROCESSING
 ##############################
 
-def clean_dps(dps_geo, compute_daily_max=False):
+
+def clean_dps(dps_geo, xwalk, compute_daily_max=False):
     """Load DPS data"""
     print("------------------------")
     print("Loading DPS Data on Power Outages")
@@ -244,6 +262,6 @@ def clean_dps(dps_geo, compute_daily_max=False):
         custom_qcut_function(df_dps_summ["CUSTOMERS_OUT_RATE"])
     )
     df_dps_tract_summ = df_dps_summ.merge(
-        dps_tract_xwalk[["PRIME_DPS_", "geoid"]], on="PRIME_DPS_"
+        xwalk[["PRIME_DPS_", "geoid"]], on="PRIME_DPS_"
     )
     return df_dps_tract_summ
