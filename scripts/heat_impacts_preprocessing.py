@@ -197,36 +197,91 @@ def clean_dps(dps_geo, xwalk, compute_daily_max=False):
     df_dps = df_dps[
         df_dps["COUNTY"].isin(["Queens", "Bronx", "Kings", "Richmond", "New York"])
     ]
-    df_dps["PRIME_DPS_"] = df_dps["DPS_ID"].str.split(".").apply(lambda x: x[0])
+    df_dps["PRIME_DPS_"] = (
+        df_dps["DPS_ID"].str.split(".").apply(lambda x: x[0]).str.strip()
+    )
 
     # for DPS service localities that need to merged, summ total customers and total customers out
-    df_dps = df_dps.groupby(
-        ["PRIME_DPS_", "SUBMIT_DATE", "SUBMIT_TIME"], as_index=False
-    )[["TOTAL_CUSTOMERS", "CUSTOMERS_OUT"]].sum()
-    df_dps = generate_weekly_date(df_dps, "SUBMIT_DATE")
+    # need to pivot wide to ensure that we are filling in missing values
+    df_dps["SUBMIT_DATETIME"] = pd.to_datetime(
+        df_dps["SUBMIT_DATE"] + " " + df_dps["SUBMIT_TIME"]
+    )
+    df_dps["DPS_ORDER"] = (
+        df_dps["DPS_ID"].str.split(".").apply(lambda x: x[-1]).str.strip()
+    )
+    df_dps_pivot = df_dps.pivot(
+        index=["SUBMIT_DATETIME", "PRIME_DPS_"],
+        columns=["DPS_ORDER"],
+        values=["CUSTOMERS_OUT", "TOTAL_CUSTOMERS"],
+    ).reset_index()
+    df_dps_pivot.columns = [
+        "_".join(col).strip() for col in df_dps_pivot.columns.values
+    ]
+    df_dps_pivot = df_dps_pivot.rename(
+        columns={"SUBMIT_DATETIME_": "SUBMIT_DATETIME", "PRIME_DPS__": "PRIME_DPS_"}
+    )
+    df_dps_pivot["TOTAL_CUSTOMERS_0_MOD"] = (
+        df_dps_pivot.sort_values("SUBMIT_DATETIME", ascending=False)
+        .groupby("PRIME_DPS_", as_index=False)["TOTAL_CUSTOMERS_0"]
+        .transform(lambda x: x.bfill())
+    )
+    df_dps_pivot["TOTAL_CUSTOMERS_2_MOD"] = (
+        df_dps_pivot.sort_values("SUBMIT_DATETIME", ascending=False)
+        .groupby("PRIME_DPS_", as_index=False)["TOTAL_CUSTOMERS_2"]
+        .transform(lambda x: x.bfill())
+    )
+    df_dps_pivot["TOTAL_CUSTOMERS_0_MOD"] = (
+        df_dps_pivot.sort_values("SUBMIT_DATETIME", ascending=True)
+        .groupby("PRIME_DPS_", as_index=False)["TOTAL_CUSTOMERS_0_MOD"]
+        .transform(lambda x: x.bfill())
+    )
+    df_dps_pivot["TOTAL_CUSTOMERS_2_MOD"] = (
+        df_dps_pivot.sort_values("SUBMIT_DATETIME", ascending=True)
+        .groupby("PRIME_DPS_", as_index=False)["TOTAL_CUSTOMERS_2_MOD"]
+        .transform(lambda x: x.bfill())
+    )
+    df_dps_pivot[["CUSTOMERS_OUT_0", "CUSTOMERS_OUT_2"]] = df_dps_pivot[
+        ["CUSTOMERS_OUT_0", "CUSTOMERS_OUT_2"]
+    ].fillna(0)
+    df_dps_pivot["CUSTOMERS_OUT_RATE"] = df_dps_pivot[
+        ["CUSTOMERS_OUT_0", "CUSTOMERS_OUT_2"]
+    ].sum(axis=1) / df_dps_pivot[
+        ["TOTAL_CUSTOMERS_0_MOD", "TOTAL_CUSTOMERS_2_MOD"]
+    ].sum(
+        axis=1
+    )
 
-    assert (df_dps["TOTAL_CUSTOMERS"] > 0).all()
+    df_dps_pivot = generate_weekly_date(df_dps_pivot, "SUBMIT_DATETIME")
 
-    df_dps = df_dps[(df_dps["year"] >= 2021) & (df_dps["month"].isin([5, 6, 7, 8, 9]))]
+    df_dps_pivot = df_dps_pivot[
+        (df_dps_pivot["year"] >= 2021) & (df_dps_pivot["month"].isin([5, 6, 7, 8, 9]))
+    ]
     dates = pd.date_range(
-        start=df_dps["date"].min(), end=df_dps["date"].max(), freq="D"
+        start=df_dps_pivot["date"].min(), end=df_dps_pivot["date"].max(), freq="D"
     ).tolist()
-
     if compute_daily_max == True:
-        # compute outage rate at 30 min intervals
-        df_dps["CUSTOMERS_OUT_RATE"] = (
-            df_dps["CUSTOMERS_OUT"] * 1000 / df_dps["TOTAL_CUSTOMERS"]
-        )
         # compute the daily max value
-        df_dps_summ = df_dps.groupby(["date", "PRIME_DPS_"], as_index=False)[
+        df_dps_summ = df_dps_pivot.groupby(["date", "PRIME_DPS_"], as_index=False)[
             "CUSTOMERS_OUT_RATE"
         ].max()
 
         df_dps_summ["date"] = pd.to_datetime(df_dps_summ["date"])
+
         df_dps_summ = create_grid(
-            dps_geo["PRIME_DPS_"], dates, "PRIME_DPS_", "date"
+            df_dps_summ["PRIME_DPS_"], dates, "PRIME_DPS_", "date"
         ).merge(df_dps_summ, on=["PRIME_DPS_", "date"], how="left")
         df_dps_summ["CUSTOMERS_OUT_RATE"] = df_dps_summ["CUSTOMERS_OUT_RATE"].fillna(0)
+        df_dps_summ["CUSTOMERS_OUT"] = df_dps_summ["CUSTOMERS_OUT"].fillna(0)
+        df_dps_summ["TOTAL_CUSTOMERS"] = (
+            df_dps_summ.sort_values("date", ascending=False)
+            .groupby("PRIME_DPS_", as_index=False)["TOTAL_CUSTOMERS"]
+            .transform(lambda x: x.bfill())
+        )
+        df_dps_summ["TOTAL_CUSTOMERS"] = (
+            df_dps_summ.sort_values("date", ascending=True)
+            .groupby("PRIME_DPS_", as_index=False)["TOTAL_CUSTOMERS"]
+            .transform(lambda x: x.bfill())
+        )
     else:
         df_dps_dedup = df_dps.sort_values(
             "CUSTOMERS_OUT", ascending=False
@@ -255,6 +310,10 @@ def clean_dps(dps_geo, xwalk, compute_daily_max=False):
         )
         df_dps_summ["CUSTOMERS_OUT_RATE"] = df_dps_summ["CUSTOMERS_OUT_RATE"].fillna(0)
 
+    assert (df_dps_summ["CUSTOMERS_OUT_RATE"] <= 1) & (
+        df_dps_summ["CUSTOMERS_OUT_RATE"] >= 0
+    )
+    assert df_dps_summ["CUSTOMERS_OUT_RATE"].notna().all()
     df_dps_summ = df_dps_summ.groupby("PRIME_DPS_", as_index=False)[
         "CUSTOMERS_OUT_RATE"
     ].mean()
