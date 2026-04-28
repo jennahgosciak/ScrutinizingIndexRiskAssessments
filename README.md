@@ -5,4 +5,4 @@ To create a conda environment with specific packages for this project, run:
 conda env create -f environment.yml
 ```
 
-To run the analysis
+`analysis.ipynb` will run all of the analyses in the paper. Additional helper functions are in `_scripts`.
