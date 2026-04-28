@@ -4,3 +4,5 @@ To create a conda environment with specific packages for this project, run:
 ```
 conda env create -f environment.yml
 ```
+
+To run the analysis
