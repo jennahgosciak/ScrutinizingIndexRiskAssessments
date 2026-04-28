@@ -1,2 +1,3 @@
 _data/
 *.geojson
+.DS_Store
