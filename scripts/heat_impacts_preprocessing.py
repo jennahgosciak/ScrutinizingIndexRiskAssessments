@@ -106,8 +106,9 @@ def create_311_grid(df, tract_geo, dec_gdf):
 
     # merge to grid, will fill in missing values
     gdf_311_summ = (
-        create_grid(tract_geo["geoid"], weekly_dates, "geoid")
-        .merge(df, on=["geoid", "week"], how="left")
+        create_grid(tract_geo["geoid"], weekly_dates, "geoid").merge(
+            df, on=["geoid", "week"], how="left"
+        )
         # add in total population info
         .merge(dec_gdf[["geoid", "totalpop_dec"]], on="geoid", how="left")
     )
@@ -122,7 +123,7 @@ def create_311_grid(df, tract_geo, dec_gdf):
     )
 
     assert gdf_311_summ["count_pp_hydrant"].notna().all()
-    assert np.isfinite(gdf_311_summ["count_pp_hydrant"]).all() # check finite
+    assert np.isfinite(gdf_311_summ["count_pp_hydrant"]).all()  # check finite
 
     # take the average across all weeks in the data
     gdf_311_summ = gdf_311_summ.groupby(["geoid"], as_index=False)[
@@ -134,13 +135,14 @@ def create_311_grid(df, tract_geo, dec_gdf):
     )
 
     # check there are no duplicates
-    assert gdf_311_summ.shape[0] == gdf_311_summ['geoid'].unique().shape[0]
+    assert gdf_311_summ.shape[0] == gdf_311_summ["geoid"].unique().shape[0]
     return gdf_311_summ
 
 
 ##############################
 # EMS PROCESSING
 ##############################
+
 
 def load_ems(load_impacts=True):
     """Load EMS data via Open Data API"""
@@ -180,7 +182,7 @@ def create_ems_grid(df, zcta_geo):
         & (df["year"] <= 2025)
         & (df["month"].isin([5, 6, 7, 8, 9]))
     ]
-    
+
     # produce weekly dates (as opposed to daily)
     weekly_dates = pd.date_range(
         start=df["week"].min(), end=df["week"].max(), freq="W-MON"
@@ -202,7 +204,7 @@ def create_ems_grid(df, zcta_geo):
     )
 
     # check there are no duplicates
-    assert df_ems_summ.shape[0] == df_ems_summ['zcta'].unique().shape[0]
+    assert df_ems_summ.shape[0] == df_ems_summ["zcta"].unique().shape[0]
     return df_ems_summ
 
 
@@ -280,17 +282,13 @@ def clean_dps(dps_geo, xwalk):
     ].sum(axis=1)
 
     # produce total customers column
-    df_dps_pivot['TOTAL_CUSTOMERS'] = df_dps_pivot[
+    df_dps_pivot["TOTAL_CUSTOMERS"] = df_dps_pivot[
         ["TOTAL_CUSTOMERS_0_MOD", "TOTAL_CUSTOMERS_2_MOD"]
-    ].sum(
-        axis=1
-    )
+    ].sum(axis=1)
 
-    df_dps_pivot["CUSTOMERS_OUT_RATE"] = df_dps_pivot[
-        "CUSTOMERS_OUT"
-    ] / df_dps_pivot[
-        "TOTAL_CUSTOMERS"
-    ]
+    df_dps_pivot["CUSTOMERS_OUT_RATE"] = (
+        df_dps_pivot["CUSTOMERS_OUT"] / df_dps_pivot["TOTAL_CUSTOMERS"]
+    )
 
     # create week, date, month, year
     df_dps_pivot = generate_weekly_date(df_dps_pivot, "SUBMIT_DATETIME")
@@ -321,9 +319,10 @@ def clean_dps(dps_geo, xwalk):
     df_dps_summ["CUSTOMERS_OUT_RATE"] = df_dps_summ["CUSTOMERS_OUT_RATE"].fillna(0)
 
     # check all rate values are >= 0 and <= 1 (no inf values)
-    assert ((df_dps_summ["CUSTOMERS_OUT_RATE"] <= 1) & (
-        df_dps_summ["CUSTOMERS_OUT_RATE"] >= 0
-    )).all()
+    assert (
+        (df_dps_summ["CUSTOMERS_OUT_RATE"] <= 1)
+        & (df_dps_summ["CUSTOMERS_OUT_RATE"] >= 0)
+    ).all()
     assert df_dps_summ["CUSTOMERS_OUT_RATE"].notna().all()
 
     # take the mean across the study period
@@ -341,8 +340,13 @@ def clean_dps(dps_geo, xwalk):
     df_dps_tract_summ = df_dps_summ.merge(
         xwalk[["PRIME_DPS_", "geoid"]], on="PRIME_DPS_"
     )
-    print(f"Dataset size after merging with census tracts: {df_dps_tract_summ.shape[0]}")
+    print(
+        f"Dataset size after merging with census tracts: {df_dps_tract_summ.shape[0]}"
+    )
 
     # check there are no duplicates
-    assert df_dps_tract_summ.shape[0] == df_dps_tract_summ[['PRIME_DPS_', 'geoid']].drop_duplicates().shape[0]
+    assert (
+        df_dps_tract_summ.shape[0]
+        == df_dps_tract_summ[["PRIME_DPS_", "geoid"]].drop_duplicates().shape[0]
+    )
     return df_dps_tract_summ

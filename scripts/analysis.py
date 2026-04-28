@@ -13,6 +13,7 @@ colorblind_cmap = sns.color_palette("colorblind", 3).as_hex()
 # HVI Replication Functions
 ##############################
 
+
 def produce_hvi_alternatives(df, additive_factors, subtracted_factors):
     """Produce simple HVI additive formula (adding and subtracting relevant inputs)"""
     assert min([1 if "_z" in x else 0 for x in additive_factors]) == 1
@@ -250,6 +251,7 @@ def min_max_summary(df, id_vars, value_vars):
 # NRI Analysis
 ########################
 
+
 def plot_nri(df, tract_geo, nyc_boros):
     """Plots NRI data in NYC"""
     df_geo = tract_geo[["geoid", "geometry"]].merge(df, on="geoid")
@@ -315,7 +317,7 @@ def produce_scatter(df, orig_var, ax):
 
 
 ##############################################
-# Check Sensitivity of Results 
+# Check Sensitivity of Results
 # For Selecting Health/Comorbidity Columns
 ##############################################
 

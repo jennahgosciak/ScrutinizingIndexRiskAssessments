@@ -22,9 +22,11 @@ def default_plot(ax):
     xlab.set_size(14)
     ylab.set_size(14)
 
+
 #####################################################
 # Load spatial data and other spatial oeprations
 #####################################################
+
 
 def load_zcta_rel_files(nyc_counties):
     """Load county- and tract-level ZCTA relationship files"""
@@ -215,6 +217,7 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
     print(f"ZCTA/DPS data size: {gdf.shape}")
     return mgd_data
 
+
 def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
     """Comparison  of the Census relationship file to a simple spatial overlap method"""
     _, tract_rel_file = load_zcta_rel_files(nyc_counties)
@@ -313,6 +316,7 @@ def load_hvi_data(open_data_path, zcta_geo, nta_geo, load_data=True):
 # Load NRI
 ####################
 
+
 def load_nri_data(nyc_counties, download_nri_data=True):
     """Loads NRI Data for NYC"""
     print("------------------------")
@@ -364,6 +368,7 @@ def load_uri():
 ########################
 # Load CDC Places Data
 ########################
+
 
 def load_cdc_places(zcta_geo, nyc_counties, year=2024, load_cdc_places_data=True):
     """Loading data from CDC Places via API or cache"""
@@ -520,6 +525,7 @@ def convert_temp_units(df, cols):
         df[col + "_f"] = ((df[col] - 273.15) * 9 / 5) + 32
     return df
 
+
 def load_ecostress_data(filename, id_col="geoid"):
     """Loads land surface temperature data pre-cleaned from raster"""
     print("------------------------")
@@ -553,6 +559,7 @@ def load_ecostress_data(filename, id_col="geoid"):
 # Load Vegetation Data
 ######################
 
+
 def load_veg_data(filename, rank_method, id_col="geoid"):
     """Loads zonal histogram of vegetation data (generated via R code)"""
     print("------------------------")
@@ -575,6 +582,7 @@ def load_veg_data(filename, rank_method, id_col="geoid"):
 ##########################
 # Data Manipulation/QA
 ##########################
+
 
 def check_missing_negative_value(df):
     """Check missing or negative values of columns"""
@@ -602,6 +610,7 @@ def standardize_values(df, vars, rank_method):
             df[var], method=rank_method
         )
     return df
+
 
 ##########################
 # Merging data
@@ -658,4 +667,3 @@ def merge_tract_nta(nta, tract):
     df_tract_hvi = df_tract_hvi[df_tract_hvi["PCT_HOUSEHOLDS_AC"].notna()]
     print(f"After dropping missing AC values, data shape is: {df_tract_hvi.shape}")
     return df_tract_hvi
-
