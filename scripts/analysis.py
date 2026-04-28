@@ -9,10 +9,9 @@ from scripts.utils import *
 # Define for plotting
 colorblind_cmap = sns.color_palette("colorblind", 3).as_hex()
 
-#############
+##############################
 # HVI Replication Functions
-###############
-
+##############################
 
 def produce_hvi_alternatives(df, additive_factors, subtracted_factors):
     """Produce simple HVI additive formula (adding and subtracting relevant inputs)"""
@@ -49,7 +48,6 @@ def rank_all_specifications(df, nta_geo, alt_specifications, rank_method):
 
 def produce_all_specifications(df, health_zscore_cols):
     """Produce all alternative specifications as enumerated in the main paper"""
-    """Produce all specifications via formula"""
     print("------------------------")
     print("Producing all specifications")
     print("Reproducing original")
@@ -118,6 +116,7 @@ def produce_correlations(df, vars, correlation_method, latex=True):
 
 
 def compute_risk_increase(df, vars):
+    """Identify where any of the input variables lead to an increase in HVI risk to HVI=4 or 5"""
     for var in vars:
         df[var + "_increase"] = (
             df["HVI_RANK"].astype(int) < df[var + "_q5"].astype(int)
@@ -126,7 +125,7 @@ def compute_risk_increase(df, vars):
 
 
 def summarize_agreement(df, vars, latex=False):
-    """Producing agreement summaries for alternative specifications compard to true values"""
+    """Produce agreement summaries for different HVI specifications compard to original HVI risk scores"""
     for var in vars:
         df[var + "_match"] = df[var + "_q5"] == df["HVI_raw_q5"]
 
@@ -140,7 +139,7 @@ def summarize_agreement(df, vars, latex=False):
 
 
 def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
-    """Produce maps corresponding to increases in risk (risk scores of 4 or 5)"""
+    """Produce maps corresponding to increases in risk (HVI risk = 4 or 5)"""
     vars = [x for x in vars if x != "HVI_raw"]
     for i, var in enumerate(vars):
         gdf[var + "_q5"] = gdf[var + "_q5"].astype(str).str.replace(".0", "")
@@ -176,7 +175,7 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
 
 
 def prep_for_plot(df, vars, orig_var, id_var):
-    """Produce dataframe that's pivoted long as prep for plotting"""
+    """Produce dataframe that's pivoted long to prepare for plot"""
     print("------------------------")
     print("Prepping data for plotting")
     print(f"id var: {id_var}")
@@ -237,7 +236,7 @@ def prep_for_plot(df, vars, orig_var, id_var):
 
 
 def min_max_summary(df, id_vars, value_vars):
-    """Produce summary of max/min values"""
+    """Produce summary of max/min values compared to original HVI"""
     df_summary = (
         df[id_vars + value_vars]
         .melt(id_vars=id_vars)
@@ -251,9 +250,8 @@ def min_max_summary(df, id_vars, value_vars):
 # NRI Analysis
 ########################
 
-
 def plot_nri(df, tract_geo, nyc_boros):
-    """Plots NRI data onto NYC maps"""
+    """Plots NRI data in NYC"""
     df_geo = tract_geo[["geoid", "geometry"]].merge(df, on="geoid")
     df_geo[["HWAV_EALT_q5", "HWAV_EALTxSVIxRESL_q5"]] = (
         df_geo[["HWAV_EALT_q5", "HWAV_EALTxSVIxRESL_q5"]].astype(int).astype(str)
@@ -285,6 +283,7 @@ def plot_nri(df, tract_geo, nyc_boros):
 
 
 def produce_scatter(df, orig_var, ax):
+    """Add scatter plot with formatting"""
     for line in df["variable"].unique():
         df_temp = df[df["variable"] == line]
         print(f"Plotting {line}")
@@ -315,16 +314,19 @@ def produce_scatter(df, orig_var, ax):
         )
 
 
-########################
-# Check Sensitivity of Results
-# For Selecting Health Columns
-########################
+##############################################
+# Check Sensitivity of Results 
+# For Selecting Health/Comorbidity Columns
+##############################################
 
 
 def test_sensitivity_health_specification(
     df, health_cols, rank_method, correlation_method
 ):
-    """ "For any combination of health columns, produce rankings and quintiles"""
+    """
+    Tests the sensitivity of the choice of comorbidities for the health specification.
+    For any combination of health columns, produces rankings and quintiles.
+    """
     df["HVI_health_sens"] = produce_hvi_alternatives(
         df,
         ["SURFACE_TEMP_z", "PCT_BLACK_POP_z"] + list(health_cols),
@@ -349,7 +351,10 @@ def test_sensitivity_health_specification(
 
 
 def health_specification_correlations(df, health_cols, rank_method, correlation_method):
-    """Produce all possible ranking- and quintile-based correlations"""
+    """
+    Produce all possible ranking- and quintile-based correlations for different comorbidities
+    included in the health specification HVI.
+    """
     # create all combinations of health cols
     health_cols_combinations = []
     for i in range(1, len(health_cols) + 1):
@@ -367,7 +372,7 @@ def health_specification_correlations(df, health_cols, rank_method, correlation_
 
 
 def print_health_cols_corr(corr_vals):
-    """Print average, minimum, and maxium values for rankings"""
+    """Print average, minimum, and maxium values for different rankings"""
     print(f"Average value: {round(np.mean(corr_vals), 4)}")
     print(f"Minimum: {round(np.min(corr_vals), 4)}")
     print(f"Maximum: {round(np.max(corr_vals), 4)}")

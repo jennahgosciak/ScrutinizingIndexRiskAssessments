@@ -73,6 +73,7 @@ def load_dec(census, tract_geo, load_dec_data=True, year=2020):
 
 
 def load_acs_zcta(census, zcta_geo, load_acs_data=True, year=2020):
+    """Load data from the 2016-2020 ACS at ZCTA level"""
     if load_acs_data == True:
         # load data from ACS (ZCTA)
         acs_zcta = pd.DataFrame(
@@ -98,6 +99,7 @@ def load_acs_zcta(census, zcta_geo, load_acs_data=True, year=2020):
 
 
 def load_census(tract_geo, zcta_geo, load_acs_data=True, load_dec_data=True, year=2020):
+    """Load data from the Decennial Census (2020)"""
     census = Census("")
 
     acs_gdf = load_acs(census, tract_geo, load_acs_data=load_acs_data, year=year)
@@ -176,6 +178,7 @@ pct_vars = [
 
 
 def produce_pct(df):
+    """Produce percentages for relevant ACS variabels"""
     # compute percentages
     df.loc[:, "pct_black"] = df["black_nh_dec"] / df["totalpop_dec"]
     df.loc[:, "pct_hh_gt65"] = df["hh_gt65"] / df["total_hh_age"]  # this is the denom
@@ -202,11 +205,13 @@ def produce_pct(df):
 
 
 def clean_acs_hvi(acs_gdf):
+    """Clean ACS data for HVI replication"""
     acs_gdf_hvi = acs_gdf[census_cols_hvi].copy()
 
     # drop census tracts with 0 pop
     acs_gdf_hvi = acs_gdf_hvi[acs_gdf_hvi["totalpop_dec"] > 0]
 
+    # check that no values are missing and/or negative
     check_missing_negative_value(acs_gdf_hvi)
 
     acs_gdf_hvi.loc[:, "median_hhinc"] = np.where(

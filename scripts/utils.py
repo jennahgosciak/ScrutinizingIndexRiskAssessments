@@ -22,6 +22,9 @@ def default_plot(ax):
     xlab.set_size(14)
     ylab.set_size(14)
 
+#####################################################
+# Load spatial data and other spatial oeprations
+#####################################################
 
 def load_zcta_rel_files(nyc_counties):
     """Load county- and tract-level ZCTA relationship files"""
@@ -212,6 +215,31 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
     print(f"ZCTA/DPS data size: {gdf.shape}")
     return mgd_data
 
+def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
+    """Comparison  of the Census relationship file to a simple spatial overlap method"""
+    _, tract_rel_file = load_zcta_rel_files(nyc_counties)
+    tract_rel_file = tract_rel_file.rename(
+        columns={"GEOID_TRACT_20": "geoid", "GEOID_ZCTA5_20": "zcta_relfile"}
+    )
+    tract_rel_file["geoid"] = tract_rel_file["geoid"].astype(str).str.replace(".0", "")
+
+    zcta_tract_xwalk = tract_spatial_join(
+        zcta_geo, tract_geo, method="spatial_overlap", spatial_id="zcta"
+    )
+    df_comparison = zcta_tract_xwalk.merge(tract_rel_file, on="geoid", how="outer")
+    df_comparison["zcta_relfile"] = (
+        df_comparison["zcta_relfile"].astype(str).str.replace(".0", "")
+    )
+    df_comparison = df_comparison[df_comparison["OID_TRACT_20"].notna()]
+    df_comparison = df_comparison.sort_values(
+        by="AREALAND_PART", ascending=False
+    ).drop_duplicates(subset=["OID_TRACT_20"], keep="first")
+
+    print(
+        f"\n% incorrect assignments: {(100*(df_comparison['zcta'] != df_comparison['zcta_relfile']).mean()).round(3)}%"
+    )
+    print(f"Number of rows in rel file: {df_comparison.shape[0]}")
+
 
 ####################
 # Ranking
@@ -285,7 +313,6 @@ def load_hvi_data(open_data_path, zcta_geo, nta_geo, load_data=True):
 # Load NRI
 ####################
 
-
 def load_nri_data(nyc_counties, download_nri_data=True):
     """Loads NRI Data for NYC"""
     print("------------------------")
@@ -337,7 +364,6 @@ def load_uri():
 ########################
 # Load CDC Places Data
 ########################
-
 
 def load_cdc_places(zcta_geo, nyc_counties, year=2024, load_cdc_places_data=True):
     """Loading data from CDC Places via API or cache"""
@@ -408,7 +434,7 @@ def load_cdc_places(zcta_geo, nyc_counties, year=2024, load_cdc_places_data=True
 
 
 def load_cdc_hhi_from_url():
-    """Load data from url and unzip folder locally"""
+    """Load HHI data from url and unzip folder locally"""
     print("------------------------")
     print("Loading CDC HHI Data")
     # download via url and save
@@ -489,11 +515,10 @@ def plot_simple_map(df, boros_geo, col, filename, categorical=False):
 # Load ECOSTRESS Data
 ######################
 def convert_temp_units(df, cols):
-    """Converts kelven to Farenheit"""
+    """Converts Kelven to Farenheit"""
     for col in cols:
         df[col + "_f"] = ((df[col] - 273.15) * 9 / 5) + 32
     return df
-
 
 def load_ecostress_data(filename, id_col="geoid"):
     """Loads land surface temperature data pre-cleaned from raster"""
@@ -528,7 +553,6 @@ def load_ecostress_data(filename, id_col="geoid"):
 # Load Vegetation Data
 ######################
 
-
 def load_veg_data(filename, rank_method, id_col="geoid"):
     """Loads zonal histogram of vegetation data (generated via R code)"""
     print("------------------------")
@@ -551,7 +575,6 @@ def load_veg_data(filename, rank_method, id_col="geoid"):
 ##########################
 # Data Manipulation/QA
 ##########################
-
 
 def check_missing_negative_value(df):
     """Check missing or negative values of columns"""
@@ -579,7 +602,6 @@ def standardize_values(df, vars, rank_method):
             df[var], method=rank_method
         )
     return df
-
 
 ##########################
 # Merging data
@@ -636,3 +658,4 @@ def merge_tract_nta(nta, tract):
     df_tract_hvi = df_tract_hvi[df_tract_hvi["PCT_HOUSEHOLDS_AC"].notna()]
     print(f"After dropping missing AC values, data shape is: {df_tract_hvi.shape}")
     return df_tract_hvi
+
