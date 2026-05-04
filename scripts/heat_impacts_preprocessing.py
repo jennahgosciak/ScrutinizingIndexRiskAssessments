@@ -325,28 +325,28 @@ def clean_dps(dps_geo, xwalk):
     ).all()
     assert df_dps_summ["CUSTOMERS_OUT_RATE"].notna().all()
     
+    # take the mean across the study period
+    df_dps_locality_summ = df_dps_summ.groupby("PRIME_DPS_", as_index=False)[
+        "CUSTOMERS_OUT_RATE"
+    ].mean()
+
     # write data to parquet file
-    df_dps_summ.to_parquet("./_data/dps_summary.parquet")
-    return df_dps_summ
+    df_dps_locality_summ.to_parquet("./_data/dps_summary.parquet")
+    return df_dps_locality_summ
 
 def create_dps_rankings(xwalk, rank_method):
     """Create rankings of DPS outage data from locality level summary file"""
     # load data from file
     df_dps = pd.read_parquet("./_data/dps_summary.parquet")
 
-    # take the mean across the study period
-    df_dps_summ = df_dps.groupby("PRIME_DPS_", as_index=False)[
-        "CUSTOMERS_OUT_RATE"
-    ].mean()
-
     # produce ranking values
-    df_dps_summ["CUSTOMERS_OUT_RATE_rank"], df_dps_summ["CUSTOMERS_OUT_RATE_q5"] = (
-        custom_qcut_function(df_dps_summ["CUSTOMERS_OUT_RATE"], method=rank_method)
+    df_dps["CUSTOMERS_OUT_RATE_rank"], df_dps["CUSTOMERS_OUT_RATE_q5"] = (
+        custom_qcut_function(df_dps["CUSTOMERS_OUT_RATE"], method=rank_method)
     )
 
-    print(f"Dataset size prior to xwalk with census tracts: {df_dps_summ.shape[0]}")
+    print(f"Dataset size prior to xwalk with census tracts: {df_dps.shape[0]}")
     # merge onto crosswalk data to be at tract level
-    df_dps_tract_summ = df_dps_summ.merge(
+    df_dps_tract_summ = df_dps.merge(
         xwalk[["PRIME_DPS_", "geoid"]], on="PRIME_DPS_"
     )
     print(
