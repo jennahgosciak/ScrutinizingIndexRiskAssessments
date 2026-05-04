@@ -11,3 +11,6 @@ _data/LST/*
 !_data/nri_data.parquet
 !_data/cdc_places_tract.parquet
 !_data/cdc_places_zcta.parquet
+!_data/hvi_zcta.parquet
+!_data/hvi_nta.parquet
+!_data/acs_data.parquet
