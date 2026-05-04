@@ -5,3 +5,4 @@ _data/*
 _data/LST/*
 !_data/LST/*.geojson
 !_data/Vegetation
+!_data/311_data.parquet

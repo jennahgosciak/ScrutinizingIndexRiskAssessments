@@ -98,7 +98,7 @@ def load_311(tract_geo, load_impacts=True):
     return gdf_311_summ
 
 
-def create_311_grid(df, tract_geo, dec_gdf):
+def create_311_grid(df, tract_geo, dec_gdf, rank_method):
     """Create number of hydrant complaints per 1000 people"""
     weekly_dates = pd.date_range(
         start=df["week"].min(), end=df["week"].max(), freq="W-MON"
@@ -131,7 +131,7 @@ def create_311_grid(df, tract_geo, dec_gdf):
     ].mean()
 
     gdf_311_summ["count_pp_hydrant_rank"], gdf_311_summ["count_pp_hydrant_q5"] = (
-        custom_qcut_function(gdf_311_summ["count_pp_hydrant"])
+        custom_qcut_function(gdf_311_summ["count_pp_hydrant"], method=rank_method)
     )
 
     # check there are no duplicates
@@ -171,7 +171,7 @@ def load_ems(load_impacts=True):
     return df_ems_summ
 
 
-def create_ems_grid(df, zcta_geo):
+def create_ems_grid(df, zcta_geo, rank_method):
     """Create grid of heat-related EMS incidents for each week 2021 - 2025, May - September"""
     df["month"] = df["week"].dt.month
     df["year"] = df["week"].dt.year
@@ -200,7 +200,7 @@ def create_ems_grid(df, zcta_geo):
 
     # rank zctas by ems count
     df_ems_summ["ems_count_rank"], df_ems_summ["ems_count_q5"] = custom_qcut_function(
-        df_ems_summ["count"]
+        df_ems_summ["count"], method=rank_method
     )
 
     # check there are no duplicates
@@ -214,7 +214,7 @@ def create_ems_grid(df, zcta_geo):
 
 
 def clean_dps(dps_geo, xwalk):
-    """Load DPS data"""
+    """Load and clean DPS data for 2021 - 2025"""
     print("------------------------")
     print("Loading DPS Data on Power Outages")
     # load dps data
@@ -324,15 +324,24 @@ def clean_dps(dps_geo, xwalk):
         & (df_dps_summ["CUSTOMERS_OUT_RATE"] >= 0)
     ).all()
     assert df_dps_summ["CUSTOMERS_OUT_RATE"].notna().all()
+    
+    # write data to parquet file
+    df_dps_summ.to_parquet("./_data/dps_summary.parquet")
+    return df_dps_summ
+
+def create_dps_rankings(xwalk, rank_method):
+    """Create rankings of DPS outage data from locality level summary file"""
+    # load data from file
+    df_dps = pd.read_parquet("./_data/dps_summary.parquet")
 
     # take the mean across the study period
-    df_dps_summ = df_dps_summ.groupby("PRIME_DPS_", as_index=False)[
+    df_dps_summ = df_dps.groupby("PRIME_DPS_", as_index=False)[
         "CUSTOMERS_OUT_RATE"
     ].mean()
 
     # produce ranking values
     df_dps_summ["CUSTOMERS_OUT_RATE_rank"], df_dps_summ["CUSTOMERS_OUT_RATE_q5"] = (
-        custom_qcut_function(df_dps_summ["CUSTOMERS_OUT_RATE"])
+        custom_qcut_function(df_dps_summ["CUSTOMERS_OUT_RATE"], method=rank_method)
     )
 
     print(f"Dataset size prior to xwalk with census tracts: {df_dps_summ.shape[0]}")
