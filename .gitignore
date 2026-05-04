@@ -1,3 +1,7 @@
 *.geojson
 .DS_Store
-_data/
+_data/*
+!_data/LST
+_data/LST/*
+!_data/LST/*.geojson
+
