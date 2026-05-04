@@ -190,12 +190,11 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
         # produce tract pts (either centroid or representative point)
         tract_pt = produce_tract_points(tract_data, method)
 
-        mgd_data = gdf.drop(columns="geometry").merge(
-            tract_pt[["geoid", "geometry"]].sjoin(
+        mgd_data = tract_pt[["geoid", "geometry"]].sjoin(
                 gdf[[spatial_id, "geometry"]], how="left"
-            ),
+            ).merge(gdf.drop(columns="geometry"),
             on=spatial_id,
-            how="right",
+            how="left",
         )
     elif method == "spatial_overlap":
         print(f"Tract CRS: {tract_data.crs}")
@@ -208,7 +207,7 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
             ["geoid", "area_overlap"], ascending=False
         ).drop_duplicates(subset="geoid", keep="first")
         xwalk = overlap[["geoid", spatial_id]]
-        mgd_data = gdf.drop(columns="geometry").merge(xwalk, on=spatial_id, how="right")
+        mgd_data = xwalk.merge(gdf.drop(columns="geometry"), on=spatial_id, how="left")
     else:
         print(f"{method} not recognized!")
 
@@ -247,12 +246,15 @@ def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
 ####################
 # Ranking
 ####################
-def custom_qcut_function(var, method="min"):
+# NOTE: CHECK method='min' is being overwritte/remove default argument
+def custom_qcut_function(var, method):
     """Creates quintiles based on percentile ranking"""
     if var.isna().sum() > 0:
         print("NA values in ranking var!")
 
     rank_var = var.rank(pct=True, method=method) * 100
+
+    assert var.notna().all()
     return rank_var, np.select(
         [
             rank_var <= 20,
@@ -317,7 +319,7 @@ def load_hvi_data(open_data_path, zcta_geo, nta_geo, load_data=True):
 ####################
 
 
-def load_nri_data(nyc_counties, download_nri_data=True):
+def load_nri_data(nyc_counties, method, download_nri_data=True):
     """Loads NRI Data for NYC"""
     print("------------------------")
     print("Loading NRI data (tract-level)")
@@ -349,10 +351,10 @@ def load_nri_data(nyc_counties, download_nri_data=True):
         }
     )
     nri_data["HWAV_EALT_rank"], nri_data["HWAV_EALT_q5"] = custom_qcut_function(
-        nri_data["HWAV_EALT"]
+        nri_data["HWAV_EALT"], method
     )
     nri_data["HWAV_EALTxSVIxRESL_rank"], nri_data["HWAV_EALTxSVIxRESL_q5"] = (
-        custom_qcut_function(nri_data["HWAV_EALTxSVIxRESL"])
+        custom_qcut_function(nri_data["HWAV_EALTxSVIxRESL"], method)
     )
     return nri_data
 

@@ -192,7 +192,7 @@ def produce_pct(df):
 
     # create pct over 65 variable
     df.loc[:, "pct_over65"] = (df[age_vars].sum(axis=1)) / df["totalpop"]
-    df.loc[:, "pct_over_75"] = (df["total_over75"]) / df["totalpop"]
+    df.loc[:, "pct_over_75"] = (df["total_over75"]) / df["totalpop"] ####### snaity check mathces
 
     df.loc[:, "nonwhite_nh_dec_pct"] = 1 - (
         df.loc[:, "white_nh_dec"] / df.loc[:, "totalpop_dec"]
