@@ -6,5 +6,5 @@ conda env create -f environment.yml
 ```
 
 - [`analysis.ipynb`](analysis.ipynb) will run all of the analyses in the paper.
-- Summary data is stored in [`_data`](_data/).
+- Input and summary data is stored in [`_data`](_data/).
 - Additional functions are in [`scripts`](scripts/).
