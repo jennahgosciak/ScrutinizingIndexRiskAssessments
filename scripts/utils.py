@@ -327,12 +327,12 @@ def load_nri_data(nyc_counties, method, download_nri_data=True):
         nri_data = pd.read_csv(
             "https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/National_Risk_Index_Census_Tracts/FeatureServer/replicafilescache/National_Risk_Index_Census_Tracts_-2131777716435920328.csv"
         )
+        nri_data = nri_data[
+            nri_data["State-County FIPS Code"].astype(int).isin(nyc_counties)
+        ]
         nri_data.to_parquet("./_data/nri_data.parquet")
     else:
         nri_data = pd.read_parquet("./_data/nri_data.parquet")
-    nri_data = nri_data[
-        nri_data["State-County FIPS Code"].astype(int).isin(nyc_counties)
-    ]
     nri_data["geoid"] = nri_data["State-County FIPS Code"].astype(str) + nri_data[
         "Census Tract"
     ].astype(str).str.pad(width=6, fillchar="0", side="left")

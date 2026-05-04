@@ -8,3 +8,4 @@ _data/LST/*
 !_data/311_data.parquet
 !_data/EMS_data.parquet
 !_data/dps_summary.parquet
+!_data/nri_data.parquet
