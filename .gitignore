@@ -6,3 +6,5 @@ _data/LST/*
 !_data/LST/*.geojson
 !_data/Vegetation
 !_data/311_data.parquet
+!_data/EMS_data.parquet
+!_data/dps_summary.parquet
