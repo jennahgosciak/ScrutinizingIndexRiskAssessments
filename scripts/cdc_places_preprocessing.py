@@ -68,8 +68,8 @@ def clean_cdc_places(df, id_var="geoid"):
 
     for col in data_cols:
         df_unhealthy_wide[col + "_total"] = (
-            (df_unhealthy_wide[col] / 100) * df_unhealthy_wide["totalpop18plus"]
-        )
+            df_unhealthy_wide[col] / 100
+        ) * df_unhealthy_wide["totalpop18plus"]
     df_unhealthy_wide["data_value_HIGHCHOL_total"] = (
         df_unhealthy_wide["data_value_HIGHCHOL"]
         / 100

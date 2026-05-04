@@ -190,11 +190,14 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
         # produce tract pts (either centroid or representative point)
         tract_pt = produce_tract_points(tract_data, method)
 
-        mgd_data = tract_pt[["geoid", "geometry"]].sjoin(
-                gdf[[spatial_id, "geometry"]], how="left"
-            ).merge(gdf.drop(columns="geometry"),
-            on=spatial_id,
-            how="left",
+        mgd_data = (
+            tract_pt[["geoid", "geometry"]]
+            .sjoin(gdf[[spatial_id, "geometry"]], how="left")
+            .merge(
+                gdf.drop(columns="geometry"),
+                on=spatial_id,
+                how="left",
+            )
         )
     elif method == "spatial_overlap":
         print(f"Tract CRS: {tract_data.crs}")

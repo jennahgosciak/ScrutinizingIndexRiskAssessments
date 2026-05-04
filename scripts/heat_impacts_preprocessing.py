@@ -324,7 +324,7 @@ def clean_dps(dps_geo, xwalk):
         & (df_dps_summ["CUSTOMERS_OUT_RATE"] >= 0)
     ).all()
     assert df_dps_summ["CUSTOMERS_OUT_RATE"].notna().all()
-    
+
     # take the mean across the study period
     df_dps_locality_summ = df_dps_summ.groupby("PRIME_DPS_", as_index=False)[
         "CUSTOMERS_OUT_RATE"
@@ -333,6 +333,7 @@ def clean_dps(dps_geo, xwalk):
     # write data to parquet file
     df_dps_locality_summ.to_parquet("./_data/dps_summary.parquet")
     return df_dps_locality_summ
+
 
 def create_dps_rankings(xwalk, rank_method):
     """Create rankings of DPS outage data from locality level summary file"""
@@ -346,9 +347,7 @@ def create_dps_rankings(xwalk, rank_method):
 
     print(f"Dataset size prior to xwalk with census tracts: {df_dps.shape[0]}")
     # merge onto crosswalk data to be at tract level
-    df_dps_tract_summ = df_dps.merge(
-        xwalk[["PRIME_DPS_", "geoid"]], on="PRIME_DPS_"
-    )
+    df_dps_tract_summ = df_dps.merge(xwalk[["PRIME_DPS_", "geoid"]], on="PRIME_DPS_")
     print(
         f"Dataset size after merging with census tracts: {df_dps_tract_summ.shape[0]}"
     )
