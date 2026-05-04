@@ -9,3 +9,5 @@ _data/LST/*
 !_data/EMS_data.parquet
 !_data/dps_summary.parquet
 !_data/nri_data.parquet
+!_data/cdc_places_tract.parquet
+!_data/cdc_places_zcta.parquet
