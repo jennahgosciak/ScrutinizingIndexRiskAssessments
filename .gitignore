@@ -4,4 +4,4 @@ _data/*
 !_data/LST
 _data/LST/*
 !_data/LST/*.geojson
-
+!_data/Vegetation
