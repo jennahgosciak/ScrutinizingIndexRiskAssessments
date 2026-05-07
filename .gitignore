@@ -17,4 +17,6 @@ _data/LST/*
 !_data/acs_data.parquet
 !_data/dec_data.parquet
 !_data/acs_data_zcta.parquet
-!_data/_foil/*.shp
+!_data/_foil
+_data/_foil/*
+!_data/_foil/e_locality
