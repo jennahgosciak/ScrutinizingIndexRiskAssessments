@@ -116,7 +116,7 @@ def filter_data(df, date_var):
     ]
     print(f"Minimum date (after filtering): {df[date_var].min()}")
     print(f"Maximum date (after filtering): {df[date_var].max()}")
-    print(f"Unique number of dates: {df[date_var].unique().shape[0]}")
+    print(f"Unique number of dates: {df[date_var].dt.date.unique().shape[0]}")
     return df
 
 def rank_311(df, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
