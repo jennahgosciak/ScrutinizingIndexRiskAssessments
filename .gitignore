@@ -20,3 +20,4 @@ _data/LST/*
 !_data/_foil
 _data/_foil/*
 !_data/_foil/e_locality
+*.csv

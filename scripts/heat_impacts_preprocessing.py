@@ -18,16 +18,22 @@ def create_grid(tract_ids, dates, spatial_id_name, date_var_name="week"):
 
 
 def generate_weekly_date(df, date_var):
-    """Produce week, date, month, and year variables"""
+    """Produce week variable as a date"""
     df[date_var] = pd.to_datetime(df[date_var])
     df["date"] = df[date_var].dt.date
     df["week"] = df[date_var].dt.isocalendar().week
-    df["month"] = df[date_var].dt.month
     df["year"] = df[date_var].dt.year.astype(int)
     df["week"] = pd.to_datetime(
         df["year"].astype(str) + df["week"].astype(str) + "1",
         format="%Y%W%w",
     )
+    return df
+
+def generate_month_year(df, date_var):
+    """Produce month and year variables"""
+    df[date_var] = pd.to_datetime(df[date_var])
+    df["month"] = df[date_var].dt.month
+    df["year"] = df[date_var].dt.year.astype(int)
     return df
 
 
@@ -40,9 +46,10 @@ def load_311(tract_geo, load_impacts=True):
     print("Loading 311 hydrant data via API")
 
     if load_impacts:
-        df_311 = pd.read_csv(
-            "https://data.cityofnewyork.us/resource/erm2-nwe9.csv?$limit=100000000&$where=created_date>%272021-01-01%27%20and%20created_date<%272025-12-31%27%20and%20contains(descriptor,%27Hydrant%27)"
-        )
+        # df_311 = pd.read_csv(
+        #     "https://data.cityofnewyork.us/resource/erm2-nwe9.csv?$limit=100000000&$where=created_date>%272021-01-01%27%20and%20created_date<%272025-12-31%27%20and%20contains(descriptor,%27Hydrant%27)"
+        # )
+        df_311 = pd.read_csv("311_data_test.csv")
         assert df_311.shape[0] < 100000000
         print(f"Initial size of 311 data: {df_311.shape}")
         # drop duplicates via resolution description
@@ -58,7 +65,7 @@ def load_311(tract_geo, load_impacts=True):
             f"Number of unique resolution descriptions: {df_311['resolution_description'].unique().shape[0]}"
         )
         print(f"311 data shape after dropping duplicates: {df_311.shape}")
-        df_311 = generate_weekly_date(df_311, "created_date")
+        #df_311 = generate_weekly_date(df_311, "created_date")
 
         # create geodataframe
         gdf_311 = gpd.GeoDataFrame(
@@ -78,11 +85,12 @@ def load_311(tract_geo, load_impacts=True):
                     "Hydrant Running (WC3)",
                     "Illegal Use Of A Hydrant (CIN)",
                     "Request To Open A Hydrant (WC4)",
-                    "Remove Hydrant Locking Device (WC6)",
+                    #"Remove Hydrant Locking Device (WC6)",
                 ]
             )
         ]
-
+        gdf_311_tracts['year'] = pd.to_datetime(gdf_311_tracts['created_date']).dt.year
+        gdf_311_tracts['month'] = pd.to_datetime(gdf_311_tracts['created_date']).dt.month
         # filter data after 2021
         gdf_311_tracts = gdf_311_tracts[
             (gdf_311_tracts["year"] >= 2021)
@@ -91,31 +99,60 @@ def load_311(tract_geo, load_impacts=True):
         ]
 
         # count complaints by week and geoid
-        gdf_311_summ = gdf_311_tracts[["geoid", "week"]].value_counts().reset_index()
+        gdf_311_summ = gdf_311_tracts[["geoid"]].value_counts().reset_index()
         gdf_311_summ.to_parquet("./_data/311_data.parquet")
     else:
         gdf_311_summ = pd.read_parquet("./_data/311_data.parquet")
     return gdf_311_summ
 
-
-def create_311_grid(df, tract_geo, dec_gdf, rank_method):
-    """Create number of hydrant complaints per 1000 people"""
-    weekly_dates = pd.date_range(
-        start=df["week"].min(), end=df["week"].max(), freq="W-MON"
+def create_date_range(df, date_var, date_freq):
+    """Create list of unique date range based on min and max in data"""
+    dates = pd.date_range(
+        start=df[date_var].min(), end=df[date_var].max(), freq=date_freq
     ).tolist()
+    print(f"Start date: {df[date_var].min()}")
+    print(f"End date: {df[date_var].max()}")
+    print(f"Producing list of dates with {date_freq} frequency")
+    print(f"Number of unique dates in grid: {len(dates)}")
+    return dates
+
+def filter_data(df, date_var):
+    """Filter data for correct date range 2021 - 2025, May through September"""
+    # filter data after 2021
+    print(f"Filtering data for 2021 - 2025, May through September for date variable: {date_var}")
+    df = generate_month_year(df, date_var)
+    df = df[
+        (df["year"] >= 2021)
+        & (df["year"] <= 2025)
+        & (df["month"].isin([5, 6, 7, 8, 9]))
+    ]
+    print(f"Minimum date (after filtering): {df[date_var].min()}")
+    print(f"Maximum date (after filtering): {df[date_var].max()}")
+    print(f"Unique number of dates: {df[date_var].unique().shape[0]}")
+    return df
+
+def create_311_grid(df, tract_geo, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
+    """Create number of hydrant complaints per 1000 people"""
+    
+    #dates = create_date_range(df, date_var, date_freq)
 
     # merge to grid, will fill in missing values
     gdf_311_summ = (
-        create_grid(tract_geo["geoid"], weekly_dates, "geoid").merge(
-            df, on=["geoid", "week"], how="left"
-        )
+        dec_gdf[["geoid", "totalpop_dec"]].merge(df, on=['geoid'], how='left')
+        # create_grid(tract_geo["geoid"], dates, "geoid", date_var_name=date_var).merge(
+        #     df, on=["geoid", date_var], how="left"
+        # )
         # add in total population info
-        .merge(dec_gdf[["geoid", "totalpop_dec"]], on="geoid", how="left")
+        #.merge(dec_gdf[["geoid", "totalpop_dec"]], on="geoid", how="left")
     )
     # fill in missing values
     gdf_311_summ["count"] = gdf_311_summ["count"].fillna(0)
+
     # remove tracts with 0 population
     gdf_311_summ = gdf_311_summ[gdf_311_summ["totalpop_dec"] > 0]
+
+    # filter for correct time range (2021 - 2025, May through Sept.)
+    #gdf_311_summ = filter_data(gdf_311_summ, date_var)
 
     # produce rate per 1000 people
     gdf_311_summ["count_pp_hydrant"] = (
@@ -143,7 +180,6 @@ def create_311_grid(df, tract_geo, dec_gdf, rank_method):
 # EMS PROCESSING
 ##############################
 
-
 def load_ems(load_impacts=True):
     """Load EMS data via Open Data API"""
     print("------------------------")
@@ -165,35 +201,27 @@ def load_ems(load_impacts=True):
             .rename(columns={"zipcode": "zcta"})
         )
         df_ems_summ["zcta"] = df_ems_summ["zcta"].astype(str).str[:5]
+        print(f"Percent missing zipcode: {round(100*df_ems_summ['zcta'].isna().mean(), 3)}")
         df_ems_summ.to_parquet("./_data/ems_data.parquet")
     else:
         df_ems_summ = pd.read_parquet("./_data/ems_data.parquet")
     return df_ems_summ
 
 
-def create_ems_grid(df, zcta_geo, rank_method):
+def create_ems_grid(df, zcta_geo, rank_method, date_var='week', date_freq="W-MON"):
     """Create grid of heat-related EMS incidents for each week 2021 - 2025, May - September"""
-    df["month"] = df["week"].dt.month
-    df["year"] = df["week"].dt.year
-
-    # filter to data in the study period
-    df = df[
-        (df["year"] >= 2021)
-        & (df["year"] <= 2025)
-        & (df["month"].isin([5, 6, 7, 8, 9]))
-    ]
-
     # produce weekly dates (as opposed to daily)
-    weekly_dates = pd.date_range(
-        start=df["week"].min(), end=df["week"].max(), freq="W-MON"
-    ).tolist()
+    dates = create_date_range(df, date_var, date_freq)
 
     # merge to grid, will add in 0s
-    df_ems_summ = create_grid(zcta_geo["zcta"].unique(), weekly_dates, "zcta").merge(
-        df, on=["zcta", "week"], how="left"
+    df_ems_summ = create_grid(zcta_geo["zcta"].unique(), dates, "zcta", date_var_name=date_var).merge(
+        df, on=["zcta", date_var], how="left"
     )
     # fill in missing count values
     df_ems_summ["count"] = df_ems_summ["count"].fillna(0)
+
+    # filter for correct time range (2021 - 2025, May through Sept.)
+    df_ems_summ = filter_data(df_ems_summ, date_var)
 
     # group by zcta
     df_ems_summ = df_ems_summ.groupby(["zcta"], as_index=False)["count"].mean()
@@ -225,6 +253,7 @@ def clean_dps(dps_geo, xwalk):
         ]
     )
     df_dps = df_dps[
+        # filter for 5 boroughs via county
         df_dps["COUNTY"].isin(["Queens", "Bronx", "Kings", "Richmond", "New York"])
     ]
     df_dps["PRIME_DPS_"] = (
@@ -290,18 +319,11 @@ def clean_dps(dps_geo, xwalk):
         df_dps_pivot["CUSTOMERS_OUT"] / df_dps_pivot["TOTAL_CUSTOMERS"]
     )
 
-    # create week, date, month, year
+    # create week column
     df_dps_pivot = generate_weekly_date(df_dps_pivot, "SUBMIT_DATETIME")
 
-    # filter to 2021, may through september
-    df_dps_pivot = df_dps_pivot[
-        (df_dps_pivot["year"] >= 2021) & (df_dps_pivot["month"].isin([5, 6, 7, 8, 9]))
-    ]
-
     # create list of dates
-    dates = pd.date_range(
-        start=df_dps_pivot["date"].min(), end=df_dps_pivot["date"].max(), freq="D"
-    ).tolist()
+    dates = create_date_range(df_dps_pivot, "date", "D")
 
     # compute the daily max value
     df_dps_summ = df_dps_pivot.groupby(["date", "PRIME_DPS_"], as_index=False)[
@@ -317,6 +339,9 @@ def clean_dps(dps_geo, xwalk):
 
     # fill in 0s
     df_dps_summ["CUSTOMERS_OUT_RATE"] = df_dps_summ["CUSTOMERS_OUT_RATE"].fillna(0)
+
+    # filter for correct time range (2021 - 2025, May through Sept.)
+    df_dps_summ = filter_data(df_dps_summ, "date")
 
     # check all rate values are >= 0 and <= 1 (no inf values)
     assert (
