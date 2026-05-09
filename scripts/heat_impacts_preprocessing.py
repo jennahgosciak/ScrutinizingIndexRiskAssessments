@@ -29,6 +29,7 @@ def generate_weekly_date(df, date_var):
     )
     return df
 
+
 def generate_month_year(df, date_var):
     """Produce month and year variables"""
     df[date_var] = pd.to_datetime(df[date_var])
@@ -93,6 +94,7 @@ def load_311(tract_geo, load_impacts=True):
         gdf_311_summ = pd.read_parquet("./_data/311_data.parquet")
     return gdf_311_summ
 
+
 def create_date_range(df, date_var, date_freq):
     """Create list of unique date range based on min and max in data"""
     dates = pd.date_range(
@@ -104,10 +106,13 @@ def create_date_range(df, date_var, date_freq):
     print(f"Number of unique dates in grid: {len(dates)}")
     return dates
 
+
 def filter_data(df, date_var):
     """Filter data for correct date range 2021 - 2025, May through September"""
     # filter data after 2021
-    print(f"Filtering data for 2021 - 2025, May through September for date variable: {date_var}")
+    print(
+        f"Filtering data for 2021 - 2025, May through September for date variable: {date_var}"
+    )
     df = generate_month_year(df, date_var)
     df = df[
         (df["year"] >= 2021)
@@ -119,12 +124,13 @@ def filter_data(df, date_var):
     print(f"Unique number of dates: {df[date_var].dt.date.unique().shape[0]}")
     return df
 
+
 def rank_311(df, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
     """Create number of hydrant complaints per 1000 people"""
-    
+
     # merge to grid, will fill in missing values
-    gdf_311_summ = (
-        dec_gdf[["geoid", "totalpop_dec"]].merge(df, on=['geoid'], how='left')
+    gdf_311_summ = dec_gdf[["geoid", "totalpop_dec"]].merge(
+        df, on=["geoid"], how="left"
     )
     # fill in missing values
     gdf_311_summ["count"] = gdf_311_summ["count"].fillna(0)
@@ -153,6 +159,7 @@ def rank_311(df, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
 # EMS PROCESSING
 ##############################
 
+
 def load_ems(load_impacts=True):
     """Load EMS data via Open Data API"""
     print("------------------------")
@@ -165,13 +172,24 @@ def load_ems(load_impacts=True):
         # keep only final call type equal to heat
         df_ems = df_ems[df_ems["final_call_type"] == "HEAT"]
         df_ems = df_ems[df_ems["first_activation_datetime"].notna()]
-        
-        # check there are no duplicates
-        assert df_ems.shape[0] == df_ems[['cad_incident_id', 'incident_datetime', 'zipcode', 'first_activation_datetime']].drop_duplicates().shape[0]
 
+        # check there are no duplicates
+        assert (
+            df_ems.shape[0]
+            == df_ems[
+                [
+                    "cad_incident_id",
+                    "incident_datetime",
+                    "zipcode",
+                    "first_activation_datetime",
+                ]
+            ]
+            .drop_duplicates()
+            .shape[0]
+        )
 
         # filter for correct time range (2021 - 2025, May through Sept.)
-        df_ems = filter_data(df_ems, 'first_activation_datetime')
+        df_ems = filter_data(df_ems, "first_activation_datetime")
 
         df_ems_summ = (
             df_ems[["zipcode"]]
@@ -180,20 +198,20 @@ def load_ems(load_impacts=True):
             .rename(columns={"zipcode": "zcta"})
         )
         df_ems_summ["zcta"] = df_ems_summ["zcta"].astype(str).str[:5]
-        print(f"Percent missing zipcode: {round(100*df_ems_summ['zcta'].isna().mean(), 3)}")
+        print(
+            f"Percent missing zipcode: {round(100*df_ems_summ['zcta'].isna().mean(), 3)}"
+        )
         df_ems_summ.to_parquet("./_data/ems_data.parquet")
     else:
         df_ems_summ = pd.read_parquet("./_data/ems_data.parquet")
     return df_ems_summ
 
 
-def rank_ems(df, zcta_geo, rank_method, date_var='week', date_freq="W-MON"):
+def rank_ems(df, zcta_geo, rank_method, date_var="week", date_freq="W-MON"):
     """Compute count of heat-related EMS incidents for each week 2021 - 2025, May - September"""
 
     # merge to grid, will add in 0s
-    df_ems_summ = zcta_geo.merge(
-        df, on=["zcta"], how="left"
-    )
+    df_ems_summ = zcta_geo.merge(df, on=["zcta"], how="left")
     # fill in missing count values
     df_ems_summ["count"] = df_ems_summ["count"].fillna(0)
 
