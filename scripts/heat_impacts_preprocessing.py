@@ -46,26 +46,21 @@ def load_311(tract_geo, load_impacts=True):
     print("Loading 311 hydrant data via API")
 
     if load_impacts:
-        # df_311 = pd.read_csv(
-        #     "https://data.cityofnewyork.us/resource/erm2-nwe9.csv?$limit=100000000&$where=created_date>%272021-01-01%27%20and%20created_date<%272025-12-31%27%20and%20contains(descriptor,%27Hydrant%27)"
-        # )
-        df_311 = pd.read_csv("311_data_test.csv")
+        df_311 = pd.read_csv(
+            "https://data.cityofnewyork.us/resource/erm2-nwe9.csv?$limit=100000000&$where=created_date>%272021-01-01%27%20and%20created_date<%272025-12-31%27%20and%20contains(descriptor,%27Hydrant%27)"
+        )
         assert df_311.shape[0] < 100000000
         print(f"Initial size of 311 data: {df_311.shape}")
+
         # drop duplicates via resolution description
         df_311["resolution_description"] = df_311["resolution_description"].fillna("")
         df_311 = df_311[~df_311["resolution_description"].str.contains("duplicate")]
         print(f"Data after dropping duplicates: {df_311.shape}")
 
-        # print out resolution descriptions
-        df_311["resolution_description"].drop_duplicates().to_csv(
-            "resolution descriptions.csv"
-        )
         print(
             f"Number of unique resolution descriptions: {df_311['resolution_description'].unique().shape[0]}"
         )
         print(f"311 data shape after dropping duplicates: {df_311.shape}")
-        #df_311 = generate_weekly_date(df_311, "created_date")
 
         # create geodataframe
         gdf_311 = gpd.GeoDataFrame(
@@ -85,18 +80,11 @@ def load_311(tract_geo, load_impacts=True):
                     "Hydrant Running (WC3)",
                     "Illegal Use Of A Hydrant (CIN)",
                     "Request To Open A Hydrant (WC4)",
-                    #"Remove Hydrant Locking Device (WC6)",
                 ]
             )
         ]
-        gdf_311_tracts['year'] = pd.to_datetime(gdf_311_tracts['created_date']).dt.year
-        gdf_311_tracts['month'] = pd.to_datetime(gdf_311_tracts['created_date']).dt.month
-        # filter data after 2021
-        gdf_311_tracts = gdf_311_tracts[
-            (gdf_311_tracts["year"] >= 2021)
-            & (gdf_311_tracts["year"] <= 2025)
-            & (gdf_311_tracts["month"].isin([5, 6, 7, 8, 9]))
-        ]
+
+        gdf_311_tracts = filter_data(gdf_311_tracts, "created_date")
 
         # count complaints by week and geoid
         gdf_311_summ = gdf_311_tracts[["geoid"]].value_counts().reset_index()
@@ -131,28 +119,18 @@ def filter_data(df, date_var):
     print(f"Unique number of dates: {df[date_var].unique().shape[0]}")
     return df
 
-def create_311_grid(df, tract_geo, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
+def rank_311(df, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
     """Create number of hydrant complaints per 1000 people"""
     
-    #dates = create_date_range(df, date_var, date_freq)
-
     # merge to grid, will fill in missing values
     gdf_311_summ = (
         dec_gdf[["geoid", "totalpop_dec"]].merge(df, on=['geoid'], how='left')
-        # create_grid(tract_geo["geoid"], dates, "geoid", date_var_name=date_var).merge(
-        #     df, on=["geoid", date_var], how="left"
-        # )
-        # add in total population info
-        #.merge(dec_gdf[["geoid", "totalpop_dec"]], on="geoid", how="left")
     )
     # fill in missing values
     gdf_311_summ["count"] = gdf_311_summ["count"].fillna(0)
 
     # remove tracts with 0 population
     gdf_311_summ = gdf_311_summ[gdf_311_summ["totalpop_dec"] > 0]
-
-    # filter for correct time range (2021 - 2025, May through Sept.)
-    #gdf_311_summ = filter_data(gdf_311_summ, date_var)
 
     # produce rate per 1000 people
     gdf_311_summ["count_pp_hydrant"] = (
@@ -161,11 +139,6 @@ def create_311_grid(df, tract_geo, dec_gdf, rank_method, date_var="week", date_f
 
     assert gdf_311_summ["count_pp_hydrant"].notna().all()
     assert np.isfinite(gdf_311_summ["count_pp_hydrant"]).all()  # check finite
-
-    # take the average across all weeks in the data
-    gdf_311_summ = gdf_311_summ.groupby(["geoid"], as_index=False)[
-        "count_pp_hydrant"
-    ].mean()
 
     gdf_311_summ["count_pp_hydrant_rank"], gdf_311_summ["count_pp_hydrant_q5"] = (
         custom_qcut_function(gdf_311_summ["count_pp_hydrant"], method=rank_method)
@@ -192,10 +165,16 @@ def load_ems(load_impacts=True):
         # keep only final call type equal to heat
         df_ems = df_ems[df_ems["final_call_type"] == "HEAT"]
         df_ems = df_ems[df_ems["first_activation_datetime"].notna()]
+        
+        # check there are no duplicates
+        assert df_ems.shape[0] == df_ems[['cad_incident_id', 'incident_datetime', 'zipcode', 'first_activation_datetime']].drop_duplicates().shape[0]
 
-        df_ems = generate_weekly_date(df_ems, "first_activation_datetime")
+
+        # filter for correct time range (2021 - 2025, May through Sept.)
+        df_ems = filter_data(df_ems, 'first_activation_datetime')
+
         df_ems_summ = (
-            df_ems[["week", "zipcode"]]
+            df_ems[["zipcode"]]
             .value_counts()
             .reset_index()
             .rename(columns={"zipcode": "zcta"})
@@ -208,23 +187,15 @@ def load_ems(load_impacts=True):
     return df_ems_summ
 
 
-def create_ems_grid(df, zcta_geo, rank_method, date_var='week', date_freq="W-MON"):
-    """Create grid of heat-related EMS incidents for each week 2021 - 2025, May - September"""
-    # produce weekly dates (as opposed to daily)
-    dates = create_date_range(df, date_var, date_freq)
+def rank_ems(df, zcta_geo, rank_method, date_var='week', date_freq="W-MON"):
+    """Compute count of heat-related EMS incidents for each week 2021 - 2025, May - September"""
 
     # merge to grid, will add in 0s
-    df_ems_summ = create_grid(zcta_geo["zcta"].unique(), dates, "zcta", date_var_name=date_var).merge(
-        df, on=["zcta", date_var], how="left"
+    df_ems_summ = zcta_geo.merge(
+        df, on=["zcta"], how="left"
     )
     # fill in missing count values
     df_ems_summ["count"] = df_ems_summ["count"].fillna(0)
-
-    # filter for correct time range (2021 - 2025, May through Sept.)
-    df_ems_summ = filter_data(df_ems_summ, date_var)
-
-    # group by zcta
-    df_ems_summ = df_ems_summ.groupby(["zcta"], as_index=False)["count"].mean()
 
     # rank zctas by ems count
     df_ems_summ["ems_count_rank"], df_ems_summ["ems_count_q5"] = custom_qcut_function(
