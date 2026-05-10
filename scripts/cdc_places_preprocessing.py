@@ -16,10 +16,55 @@ measures_list_2024 = [
     "Taking medicine to control high blood pressure among adults with high blood pressure",
 ]
 
+########################
+# Load CDC Places Data
+########################
+
+
+def load_cdc_places(zcta_geo, nyc_counties, load_cdc_places_data=True):
+    """Loading data from CDC Places via API or cache"""
+    print("------------------------")
+    print("Loading CDC Places Data")
+
+    if load_cdc_places_data:
+        endpoint_path = "https://data.cdc.gov/resource"
+
+        tract_endpoint = "ai6z-tcin"
+        zcta_endpoint = "4r2x-hcfq"
+
+        # Load tract data
+        df_cdc = pd.read_csv(
+            f"{endpoint_path}/{tract_endpoint}.csv?$limit=1000000000&$where=STATEABBR='NY'"
+        ).rename(columns={"locationname": "geoid"})
+
+        # subset to nyc counties
+        df_cdc = df_cdc[df_cdc["countyfips"].isin(nyc_counties)]
+        print(
+            f"Number of unique tracts in 2024 data: {df_cdc['geoid'].unique().shape[0]}"
+        )
+
+        # Load ZCTA data
+        df_cdc_zcta = pd.read_csv(
+            f"{endpoint_path}/{zcta_endpoint}.csv?$limit=1000000000"
+        ).rename(columns={"locationname": "zcta"})
+        df_cdc_zcta["zcta"] = df_cdc_zcta["zcta"].astype(str)
+        df_cdc_zcta = df_cdc_zcta[df_cdc_zcta["zcta"].isin(zcta_geo["zcta"])]
+        print(
+            f"Number of unique ZCTAs in 2024 data: {df_cdc_zcta['zcta'].unique().shape[0]}"
+        )
+
+        # save data
+        df_cdc.to_parquet("./_data/cdc_places_tract.parquet")
+        df_cdc_zcta.to_parquet("./_data/cdc_places_zcta.parquet")
+    else:
+        df_cdc = pd.read_parquet("./_data/cdc_places_tract.parquet")
+        df_cdc_zcta = pd.read_parquet("./_data/cdc_places_zcta.parquet")
+
+    return df_cdc, df_cdc_zcta
+
 
 def clean_cdc_places(df, id_var="geoid"):
-    """Load data from CDC Places via API"""
-    """Cleans CDC places data and converts data from long to wide"""
+    """Cleans CDC places data via API and converts data from long to wide"""
     print("------------------------")
     print("Cleaning CDC Places Data")
     print(f"id var = {id_var}")
@@ -34,11 +79,10 @@ def clean_cdc_places(df, id_var="geoid"):
     # check that we have correct number of health measures
     assert df_unhealthy["measure"].drop_duplicates().shape[0] == len(measures_list_2024)
     print(
-        f"Number of unique health measures: {df_unhealthy[["measure", "measureid"]].drop_duplicates().shape[0]}"
+        f"Number of unique health measures: {df_unhealthy[['measure', 'measureid']].drop_duplicates().shape[0]}"
     )
     print(f"Conditions: {df_unhealthy[['measure', 'measureid']].drop_duplicates()}")
 
-    
     # pivot data wide by measure id
     df_unhealthy_wide = df_unhealthy.pivot(
         index=[id_var], columns=["measureid"], values=["data_value"]
@@ -48,6 +92,12 @@ def clean_cdc_places(df, id_var="geoid"):
     df_unhealthy_wide.columns = [
         "_".join(col) for col in df_unhealthy_wide.columns.values
     ]
+
+    # check there are no duplicate population values
+    assert (
+        df_unhealthy[[id_var, "totalpop18plus"]].drop_duplicates().shape[0]
+        == df_unhealthy[id_var].unique().shape[0]
+    )
     df_unhealthy_wide = df_unhealthy_wide.rename(columns={id_var + "_": id_var}).merge(
         df_unhealthy[[id_var, "totalpop18plus"]].drop_duplicates(),
         how="left",
@@ -56,7 +106,7 @@ def clean_cdc_places(df, id_var="geoid"):
     print(f"\nShape of wide data: {df_unhealthy_wide.shape[0]}")
     print(f"# of unique locations: {df_unhealthy_wide[id_var].unique().shape[0]}")
 
-    # collect columns for health measrues
+    # collect columns for health measures
     data_cols = [x for x in df_unhealthy_wide.columns if "data_value_" in x]
     # for all column with health measures, produce estimate of the numerator
     for col in data_cols:
@@ -65,7 +115,7 @@ def clean_cdc_places(df, id_var="geoid"):
             df_unhealthy_wide[col + "_total"] = (
                 df_unhealthy_wide[col] / 100
             ) * df_unhealthy_wide["totalpop18plus"]
-    
+
     # for high cholesterol denominator must be those with cholscreen
     df_unhealthy_wide["data_value_HIGHCHOL_total"] = (
         df_unhealthy_wide["data_value_HIGHCHOL"]
@@ -88,18 +138,26 @@ def clean_cdc_places(df, id_var="geoid"):
     return df_unhealthy_wide
 
 
-def cdc_nta_cleaning(df, health_cols):
+def cdc_nta_cleaning(df, health_cols: list[str]):
+    """Produce percentage estimates for CDC places data at the NTA level"""
+    # create a copy before modifying
+    df_nta = df.copy()
+
     """Produce CDC Places percentage estimates at the NTA level"""
     for col in health_cols:
-        if ("totalpop" not in col.lower()) and (col not in ["data_value_HIGHCHOL_total", "data_value_BPMED"_total]):
+        if ("totalpop" not in col.lower()) and (
+            col not in ["data_value_HIGHCHOL_total", "data_value_BPMED_total"]
+        ):
             print(f"Recomputing percentage for {col}")
-            df[col.replace("_total", "_pct")] = df[col] / df["totalpop18plus"]
+            df_nta[col.replace("_total", "_pct")] = (
+                df_nta[col] / df_nta["totalpop18plus"]
+            )
 
-    df["data_value_HIGHCHOL_pct"] = (
-        df["data_value_HIGHCHOL_total"] / df["data_value_CHOLSCREEN_total"]
+    df_nta["data_value_HIGHCHOL_pct"] = (
+        df_nta["data_value_HIGHCHOL_total"] / df_nta["data_value_CHOLSCREEN_total"]
     )
-    df["data_value_BPMED_pct"] = (
-        df["data_value_BPMED_total"] / df["data_value_BPHIGH_total"]
+    df_nta["data_value_BPMED_pct"] = (
+        df_nta["data_value_BPMED_total"] / df_nta["data_value_BPHIGH_total"]
     )
 
     # return list of all health columns in the data
@@ -108,11 +166,11 @@ def cdc_nta_cleaning(df, health_cols):
     ]
 
     # check percentages are all within 0, 1 range
-    assert (df[health_cdc_pct_cols].min() >= 0).all()
-    assert (df[health_cdc_pct_cols].max() <= 1).all()
+    assert (df_nta[health_cdc_pct_cols].min() >= 0).all()
+    assert (df_nta[health_cdc_pct_cols].max() <= 1).all()
 
     # produce a version that is just the max percent value across all health conditions
-    df["max_cdc_health_vars"] = (
-        df[health_cdc_pct_cols].max(axis=1, skipna=True).fillna(0)
+    df_nta["max_cdc_health_vars"] = (
+        df_nta[health_cdc_pct_cols].fillna(0).max(axis=1, skipna=True).fillna(0)
     )
-    return df, health_cdc_pct_cols
+    return df_nta, health_cdc_pct_cols

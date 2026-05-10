@@ -182,6 +182,7 @@ def produce_pct(df):
     # compute percentages
     df.loc[:, "pct_black"] = df["black_nh_dec"] / df["totalpop_dec"]
     df.loc[:, "pct_hh_gt65"] = df["hh_gt65"] / df["total_hh_age"]  # this is the denom
+
     # percent individuals over 75 and in poverty / total pop
     df.loc[:, "pct_inpoverty_75over"] = (
         df[["inpoverty_75over_male", "inpoverty_75over_female"]].sum(axis=1)
@@ -192,9 +193,21 @@ def produce_pct(df):
 
     # create pct over 65 variable
     df.loc[:, "pct_over65"] = (df[age_vars].sum(axis=1)) / df["totalpop"]
-    df.loc[:, "pct_over_75"] = (df["total_over75"]) / df[
-        "totalpop"
-    ]  ####### sanity check matches
+    df.loc[:, "pct_over_75"] = (df["total_over75"]) / df["totalpop"]
+
+    # check age sums match
+    if (
+        df[
+            [
+                "totalpop_female_75to79",
+                "totalpop_female_80to84",
+                "totalpop_female_over85",
+            ]
+            + ["totalpop_male_75to79", "totalpop_male_80to84", "totalpop_male_over85"]
+        ].sum(axis=1)
+        != df["total_over75"]
+    ).any():
+        raise Exception("Population age counts do not match")
 
     df.loc[:, "nonwhite_nh_dec_pct"] = 1 - (
         df.loc[:, "white_nh_dec"] / df.loc[:, "totalpop_dec"]

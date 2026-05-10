@@ -57,7 +57,7 @@ def load_zcta_rel_files(nyc_counties):
     ]
 
     print(
-        f"Number of unique ZCTAs {df_zcta_rel_file_county['OID_ZCTA5_20'].unique().shape[0]}"
+        f"Number of unique ZCTAs {df_zcta_rel_file_county['OID_ZCTA5_20'].unique().shape[0]} in 2020 relfile"
     )
     if (
         df_zcta_rel_file_county["OID_ZCTA5_20"].unique().shape[0]
@@ -116,17 +116,22 @@ def load_geospatial(open_data_path, nyc_counties):
         "https://www2.census.gov/geo/tiger/TIGER2010/ZCTA5/2010/tl_2010_36_zcta510.zip"
     ).to_crs(2263)
 
+    # cleaning ZCTA 2020
     zcta_geo = zcta_geo.rename(columns={"ZCTA5CE20": "zcta"})
     zcta_2010_geo = zcta_2010_geo.rename(columns={"ZCTA5CE10": "zcta"})
 
+    # load all zcta values within 5 boros
     county_relfile, _ = load_zcta_rel_files(nyc_counties)
     county_relfile["GEOID_ZCTA5_20"] = (
         county_relfile["GEOID_ZCTA5_20"].astype(str).str.replace(".0", "")
     )
+    # subset zctas just to those in the county relfile
     zcta_geo = zcta_geo[zcta_geo["GEOID20"].isin(county_relfile["GEOID_ZCTA5_20"])]
+    # exclude single zcta in Long Island
     zcta_geo = zcta_geo[~zcta_geo["zcta"].isin(["11040"])]
 
     # cleaning ZCTA 2010
+    # load 2010 relfile
     df_zcta_rel_file_county = pd.read_csv(
         "https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_county_rel_10.txt"
     )
@@ -141,15 +146,15 @@ def load_geospatial(open_data_path, nyc_counties):
     zcta_2010_geo = zcta_2010_geo[
         zcta_2010_geo["zcta"].isin(df_zcta_rel_file_county["ZCTA5"])
     ]
-    # remove some areas that are technically naussau
+    # remove some areas that are technically naussau/Long Island
     zcta_2010_geo = zcta_2010_geo[~zcta_2010_geo["zcta"].isin(["11040"])]
 
     zcta_count = zcta_geo["zcta"].unique().shape[0]
     print(f"There are {zcta_count} unique ZCTAs in 2020")
 
     zcta_2010_count = zcta_2010_geo["zcta"].unique().shape[0]
-    print(f"There are {zcta_count} unique ZCTAs in 2010")
-    if (zcta_geo["zcta"] != zcta_geo["GEOID20"]).all():
+    print(f"There are {zcta_2010_count} unique ZCTAs in 2010")
+    if (zcta_geo["zcta"] != zcta_geo["GEOID20"]).any():
         raise Exception("zcta column does not match GEOID column")
 
     # load nyc tracts
@@ -212,7 +217,8 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
         xwalk = overlap[["geoid", spatial_id]]
         mgd_data = xwalk.merge(gdf.drop(columns="geometry"), on=spatial_id, how="left")
     else:
-        print(f"{method} not recognized!")
+        raise Exception(f"{method} not recognized!")
+        return None
 
     print(f"Merged data size: {mgd_data.shape}")
     print(f"Tract data size: {tract_data.shape}")
@@ -249,15 +255,13 @@ def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
 ####################
 # Ranking
 ####################
-# NOTE: CHECK method='min' is being overwritte/remove default argument
 def custom_qcut_function(var, method):
     """Creates quintiles based on percentile ranking"""
     if var.isna().sum() > 0:
-        print("NA values in ranking var!")
+        raise Exception("NA values in ranking var!")
 
     rank_var = var.rank(pct=True, method=method) * 100
 
-    assert var.notna().all()
     return rank_var, np.select(
         [
             rank_var <= 20,
@@ -371,74 +375,6 @@ def load_uri():
 
 
 ########################
-# Load CDC Places Data
-########################
-
-
-def load_cdc_places(zcta_geo, nyc_counties, year=2024, load_cdc_places_data=True):
-    """Loading data from CDC Places via API or cache"""
-    print("------------------------")
-    print("Loading CDC Places Data")
-
-    if load_cdc_places_data:
-        endpoint_path = "https://data.cdc.gov/resource"
-        if year == 2024:
-            tract_endpoint = "ai6z-tcin"
-            zcta_endpoint = "4r2x-hcfq"
-
-            # Load tract data
-            df_cdc = pd.read_csv(
-                f"{endpoint_path}/{tract_endpoint}.csv?$limit=1000000000&$where=STATEABBR='NY'"
-            ).rename(columns={"locationname": "geoid"})
-
-            df_cdc = df_cdc[df_cdc["countyfips"].isin(nyc_counties)]
-            print(
-                f"Number of unique tracts in 2024 data: {df_cdc['geoid'].unique().shape[0]}"
-            )
-
-            # Load ZCTA data
-            df_cdc_zcta = pd.read_csv(
-                f"{endpoint_path}/{zcta_endpoint}.csv?$limit=1000000000"
-            ).rename(columns={"locationname": "zcta"})
-            df_cdc_zcta["zcta"] = df_cdc_zcta["zcta"].astype(str)
-            df_cdc_zcta = df_cdc_zcta[df_cdc_zcta["zcta"].isin(zcta_geo["zcta"])]
-            print(
-                f"Number of unique ZCTAs in 2024 data: {df_cdc_zcta['zcta'].unique().shape[0]}"
-            )
-        elif year == 2020:
-            tract_endpoint = "4ai3-zynv"
-            zcta_endpoint = "fbbf-hgkc"
-
-            df_cdc = pd.read_csv(
-                f"{endpoint_path}/{tract_endpoint}.csv?$limit=1000000000&$where=STATEABBR='NY'"
-            ).rename(columns={"locationname": "geoid"})
-
-            df_cdc = df_cdc[df_cdc["countyfips"].isin(nyc_counties)]
-            print(
-                f"Number of unique tracts in 2020 data: {df_cdc['geoid'].unique().shape[0]}"
-            )
-
-            # Load ZCTA data
-            df_cdc_zcta = pd.read_csv(
-                f"{endpoint_path}/{zcta_endpoint}.csv?$limit=1000000000"
-            ).rename(columns={"locationname": "zcta"})
-            df_cdc_zcta["zcta"] = df_cdc_zcta["zcta"].astype(str)
-            df_cdc_zcta = df_cdc_zcta[df_cdc_zcta["zcta"].isin(zcta_geo["zcta"])]
-            print(
-                f"Number of unique ZCTAs in 2020 data: {df_cdc_zcta['zcta'].unique().shape[0]}"
-            )
-        else:
-            raise Exception("Only valid year options are 2020 and 2024")
-        df_cdc.to_parquet("./_data/cdc_places_tract.parquet")
-        df_cdc_zcta.to_parquet("./_data/cdc_places_zcta.parquet")
-    else:
-        df_cdc = pd.read_parquet("./_data/cdc_places_tract.parquet")
-        df_cdc_zcta = pd.read_parquet("./_data/cdc_places_zcta.parquet")
-
-    return df_cdc, df_cdc_zcta
-
-
-########################
 # Load CDC HHI Data
 ########################
 
@@ -495,6 +431,7 @@ def load_and_clean_hhi(zcta_geo, tract_geo, join_method, rank_method):
 # Plotting
 ###############
 def plot_simple_map(df, boros_geo, col, filename, categorical=False):
+    df = df.copy()
     """Plot a simple map of NYC with boroughs"""
     fig, ax = plt.subplots(1, 1, figsize=(8, 7))
     if categorical == False:
@@ -525,7 +462,7 @@ def plot_simple_map(df, boros_geo, col, filename, categorical=False):
 # Load ECOSTRESS Data
 ######################
 def convert_temp_units(df, cols):
-    """Converts Kelven to Farenheit"""
+    """Converts Kelvin to Farhenheit"""
     for col in cols:
         df[col + "_f"] = ((df[col] - 273.15) * 9 / 5) + 32
     return df
@@ -604,7 +541,9 @@ def check_missing_negative_value(df):
 
 
 def check_unique_id(df, id):
-    assert df.shape[0] == df[id].drop_duplicates().shape[0]
+    """Check id variables uniquely identify data"""
+    if df.shape[0] != df[id].drop_duplicates().shape[0]:
+        raise Exception(f"Data not uniquely identified by {id}")
 
 
 def standardize_values(df, vars, rank_method):
