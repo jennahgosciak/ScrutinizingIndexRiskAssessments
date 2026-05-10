@@ -1,4 +1,5 @@
 import pandas as pd
+from scripts.utils import *
 
 measures_list_2024 = [
     "Stroke among adults",
@@ -60,6 +61,11 @@ def load_cdc_places(zcta_geo, nyc_counties, load_cdc_places_data=True):
         df_cdc = pd.read_parquet("./_data/cdc_places_tract.parquet")
         df_cdc_zcta = pd.read_parquet("./_data/cdc_places_zcta.parquet")
 
+        # print unique values of census tract ID and ZCTA ID
+        print(
+            f"Number of census tracts in CDC Places: {df_cdc['geoid'].unique().shape[0]}"
+        )
+        print(f"Number of ZCTAs in CDC Places: {df_cdc_zcta['zcta'].unique().shape[0]}")
     return df_cdc, df_cdc_zcta
 
 
@@ -133,8 +139,11 @@ def clean_cdc_places(df, id_var="geoid"):
     total_cols = [x for x in df_unhealthy_wide.columns if "_total" in x]
 
     # checking averages overall, and that these seem reasonable
-    print("\nPrinting average total values:")
+    print("\nPrinting average numerator values:")
     print(df_unhealthy_wide[total_cols].mean().round(3).astype(str))
+
+    # check for unique ID
+    check_unique_id(df_unhealthy_wide, id_var)
     return df_unhealthy_wide
 
 
@@ -148,7 +157,7 @@ def cdc_nta_cleaning(df, health_cols: list[str]):
         if ("totalpop" not in col.lower()) and (
             col not in ["data_value_HIGHCHOL_total", "data_value_BPMED_total"]
         ):
-            print(f"Recomputing percentage for {col}")
+            print(f"Recomputing NTA percentage for {col}")
             df_nta[col.replace("_total", "_pct")] = (
                 df_nta[col] / df_nta["totalpop18plus"]
             )
