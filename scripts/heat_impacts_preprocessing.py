@@ -17,19 +17,6 @@ def create_grid(tract_ids, dates, spatial_id_name, date_var_name="week"):
     return grid_df
 
 
-def generate_weekly_date(df, date_var):
-    """Produce week variable as a date"""
-    df[date_var] = pd.to_datetime(df[date_var])
-    df["date"] = df[date_var].dt.date
-    df["week"] = df[date_var].dt.isocalendar().week
-    df["year"] = df[date_var].dt.year.astype(int)
-    df["week"] = pd.to_datetime(
-        df["year"].astype(str) + df["week"].astype(str) + "1",
-        format="%Y%W%w",
-    )
-    return df
-
-
 def generate_month_year(df, date_var):
     """Produce month and year variables"""
     df[date_var] = pd.to_datetime(df[date_var])
@@ -44,9 +31,9 @@ def generate_month_year(df, date_var):
 def load_311(tract_geo, load_impacts=True):
     """Load 311 data on hydrant complaints"""
     print("------------------------")
-    print("Loading 311 hydrant data via API")
 
     if load_impacts:
+        print("Loading 311 hydrant data via API")
         df_311 = pd.read_csv(
             "https://data.cityofnewyork.us/resource/erm2-nwe9.csv?$limit=100000000&$where=created_date>%272021-01-01%27%20and%20created_date<%272025-12-31%27%20and%20contains(descriptor,%27Hydrant%27)"
         )
@@ -91,6 +78,7 @@ def load_311(tract_geo, load_impacts=True):
         gdf_311_summ = gdf_311_tracts[["geoid"]].value_counts().reset_index()
         gdf_311_summ.to_parquet("./_data/311_data.parquet")
     else:
+        print("Loading 311 hydrant data from cache")
         gdf_311_summ = pd.read_parquet("./_data/311_data.parquet")
     return gdf_311_summ
 
@@ -100,7 +88,7 @@ def create_date_range(df, date_var, date_freq):
     dates = pd.date_range(
         start=df[date_var].min(), end=df[date_var].max(), freq=date_freq
     ).tolist()
-    print(f"Start date: {df[date_var].min()}")
+    print(f"\nStart date: {df[date_var].min()}")
     print(f"End date: {df[date_var].max()}")
     print(f"Producing list of dates with {date_freq} frequency")
     print(f"Number of unique dates in grid: {len(dates)}")
@@ -119,7 +107,7 @@ def filter_data(df, date_var):
         & (df["year"] <= 2025)
         & (df["month"].isin([5, 6, 7, 8, 9]))
     ]
-    print(f"Minimum date (after filtering): {df[date_var].min()}")
+    print(f"\nMinimum date (after filtering): {df[date_var].min()}")
     print(f"Maximum date (after filtering): {df[date_var].max()}")
     print(f"Unique number of dates: {df[date_var].dt.date.unique().shape[0]}")
     return df
@@ -197,10 +185,12 @@ def load_ems(load_impacts=True):
             .reset_index()
             .rename(columns={"zipcode": "zcta"})
         )
-        df_ems_summ["zcta"] = df_ems_summ["zcta"].astype(str).str[:5]
+
+        # checking for missing values
         print(
             f"Percent missing zipcode: {round(100*df_ems_summ['zcta'].isna().mean(), 3)}"
         )
+        df_ems_summ["zcta"] = df_ems_summ["zcta"].astype(str).str[:5]
         df_ems_summ.to_parquet("./_data/ems_data.parquet")
     else:
         df_ems_summ = pd.read_parquet("./_data/ems_data.parquet")
@@ -210,7 +200,7 @@ def load_ems(load_impacts=True):
 def rank_ems(df, zcta_geo, rank_method, date_var="week", date_freq="W-MON"):
     """Compute count of heat-related EMS incidents for each week 2021 - 2025, May - September"""
 
-    # merge to grid, will add in 0s
+    # merge to full list of zctas, add in zeros
     df_ems_summ = zcta_geo.merge(df, on=["zcta"], how="left")
     # fill in missing count values
     df_ems_summ["count"] = df_ems_summ["count"].fillna(0)
@@ -245,6 +235,10 @@ def clean_dps(dps_geo, xwalk):
         # filter for 5 boroughs via county
         df_dps["COUNTY"].isin(["Queens", "Bronx", "Kings", "Richmond", "New York"])
     ]
+
+    # check none are missing
+    assert df_dps["DPS_ID"].notna().all()
+
     df_dps["PRIME_DPS_"] = (
         df_dps["DPS_ID"].str.split(".").apply(lambda x: x[0]).str.strip()
     )
@@ -270,7 +264,7 @@ def clean_dps(dps_geo, xwalk):
         "_".join(col).strip() for col in df_dps_pivot.columns.values
     ]
 
-    # pivot data wide
+    # pivot data wide, rename cols
     df_dps_pivot = df_dps_pivot.rename(
         columns={"SUBMIT_DATETIME_": "SUBMIT_DATETIME", "PRIME_DPS__": "PRIME_DPS_"}
     )
@@ -294,7 +288,18 @@ def clean_dps(dps_geo, xwalk):
         ["CUSTOMERS_OUT_0", "CUSTOMERS_OUT_2"]
     ].fillna(0)
 
-    # produce customers out column
+    # if both the radial and non-radial outages are the same, only count the non-radial
+    print(
+        f"\n% perfect duplicates between radial and network outages: {(100*((df_dps_pivot["CUSTOMERS_OUT_0"] ==  df_dps_pivot["CUSTOMERS_OUT_2"]) & (df_dps_pivot["CUSTOMERS_OUT_0"] > 10)).mean()).round(3)}"
+    )
+    df_dps_pivot["CUSTOMERS_OUT_2"] = np.where(
+        (df_dps_pivot["CUSTOMERS_OUT_0"] == df_dps_pivot["CUSTOMERS_OUT_2"])
+        & (df_dps_pivot["CUSTOMERS_OUT_0"] > 10),
+        0,
+        df_dps_pivot["CUSTOMERS_OUT_2"],
+    )
+
+    # produce total customers out column
     df_dps_pivot["CUSTOMERS_OUT"] = df_dps_pivot[
         ["CUSTOMERS_OUT_0", "CUSTOMERS_OUT_2"]
     ].sum(axis=1)
@@ -304,12 +309,15 @@ def clean_dps(dps_geo, xwalk):
         ["TOTAL_CUSTOMERS_0_MOD", "TOTAL_CUSTOMERS_2_MOD"]
     ].sum(axis=1)
 
+    # calculate customers out rate
     df_dps_pivot["CUSTOMERS_OUT_RATE"] = (
         df_dps_pivot["CUSTOMERS_OUT"] / df_dps_pivot["TOTAL_CUSTOMERS"]
     )
 
-    # create week column
-    df_dps_pivot = generate_weekly_date(df_dps_pivot, "SUBMIT_DATETIME")
+    # create date column
+    df_dps_pivot["date"] = pd.to_datetime(
+        df_dps_pivot["SUBMIT_DATETIME"]
+    ).dt.normalize()
 
     # create list of dates
     dates = create_date_range(df_dps_pivot, "date", "D")
@@ -319,11 +327,11 @@ def clean_dps(dps_geo, xwalk):
         "CUSTOMERS_OUT_RATE"
     ].max()
 
-    df_dps_summ["date"] = pd.to_datetime(df_dps_summ["date"])
+    # df_dps_summ["date"] = pd.to_datetime(df_dps_summ["date"])
 
     # create grid and then left join (will fill in 0s)
     df_dps_summ = create_grid(
-        df_dps_summ["PRIME_DPS_"], dates, "PRIME_DPS_", "date"
+        dps_geo["PRIME_DPS_"].unique(), dates, "PRIME_DPS_", "date"
     ).merge(df_dps_summ, on=["PRIME_DPS_", "date"], how="left")
 
     # fill in 0s
