@@ -109,12 +109,12 @@ def produce_all_specifications(df, health_zscore_cols):
     return df
 
 
-def produce_correlations(df, vars, correlation_method, latex=True):
+def produce_correlations(df, var_list, correlation_method, latex=True):
     """Produce correlation matrix for a set of input variables"""
     print("------------------------")
     print(f"Correlation using {correlation_method}")
-    corr_matrix = df[vars].corr(method=correlation_method)
-    if latex == True:
+    corr_matrix = df[var_list].corr(method=correlation_method)
+    if latex:
         print(corr_matrix.round(3).astype(str).to_latex())
     return corr_matrix
 
@@ -137,7 +137,7 @@ def summarize_agreement(df, vars, latex=False):
 
     agreement_summary = df[[x + "_match" for x in vars]].mean() * 100
 
-    if latex == True:
+    if latex:
         print(agreement_summary.round(2).to_latex())
     else:
         print(agreement_summary)
@@ -149,7 +149,7 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
     gdf = gdf.copy()
     vars = [x for x in vars if x != "HVI_repl"]
     for i, var in enumerate(vars):
-        gdf[var + "_q5"] = gdf[var + "_q5"].astype(str).str.replace(".0", "")
+        gdf[var + "_q5"] = gdf[var + "_q5"].astype(int).astype(str)
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
         gdf.plot(
             column=var + "_q5",

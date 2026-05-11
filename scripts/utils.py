@@ -67,18 +67,6 @@ def load_zcta_rel_files(nyc_counties):
     return (df_zcta_rel_file_county, df_zcta_rel_file_tract)
 
 
-def load_modzcta(open_data_path):
-    """Load modified ZCTAs from DOHMH"""
-    print("------------------------")
-    print("Loading MODZCTA data from DOHMH")
-    nyc_modzcta = gpd.read_file(
-        f"{open_data_path}/pri4-ifjk.geojson?$limit=100000"
-    ).to_crs(2263)
-    nyc_modzcta["modzcta"] = nyc_modzcta["modzcta"].astype(int)
-    print(f"There are {nyc_modzcta.shape[0]} unique MODZCTAs")
-    return nyc_modzcta
-
-
 # load nta crosswalk from open data
 def load_nta_xwalk(open_data_path, nyc_tracts):
     """Loads the NYC NTA x Tract crosswalk from NYC Open Data"""
@@ -94,60 +82,72 @@ def load_nta_xwalk(open_data_path, nyc_tracts):
     return nta_xwalk
 
 
-def load_geospatial(open_data_path, nyc_counties):
+def load_geospatial(open_data_path, nyc_counties, load_geospatial_data=True):
     """Loads all geospatial data for NYC"""
     print("------------------------")
     print("Loading NTA data")
-    # nta geo
-    nta_geo = gpd.read_file(f"{open_data_path}/9nt8-h7nd.geojson?$limit=100000").to_crs(
-        2263
-    )
+    if load_geospatial_data:
+        # nta geo
+        nta_geo = gpd.read_file(f"{open_data_path}/9nt8-h7nd.geojson?$limit=100000").to_crs(
+            2263
+        )
+        nta_geo.to_file("_data/nta_geo.geojson")
+    else:
+        nta_geo = gpd.read_file("_data/nta_geo.geojson")
+    
     nta_count = nta_geo["nta2020"].unique().shape[0]
     print(f"There are {nta_count} unique neighborhoods")
 
     # load zcta data
     print("------------------------")
     print("Loading 2020 and 2010 ZCTA data")
-    zcta_geo = gpd.read_file(
-        "https://www2.census.gov/geo/tiger/TIGER2020/ZCTA520/tl_2020_us_zcta520.zip"
-    ).to_crs(2263)
+    if load_geospatial_data:
+        zcta_geo = gpd.read_file(
+            "https://www2.census.gov/geo/tiger/TIGER2020/ZCTA520/tl_2020_us_zcta520.zip"
+        ).to_crs(2263)
 
-    zcta_2010_geo = gpd.read_file(
-        "https://www2.census.gov/geo/tiger/TIGER2010/ZCTA5/2010/tl_2010_36_zcta510.zip"
-    ).to_crs(2263)
+        zcta_2010_geo = gpd.read_file(
+            "https://www2.census.gov/geo/tiger/TIGER2010/ZCTA5/2010/tl_2010_36_zcta510.zip"
+        ).to_crs(2263)
 
-    # cleaning ZCTA 2020
-    zcta_geo = zcta_geo.rename(columns={"ZCTA5CE20": "zcta"})
-    zcta_2010_geo = zcta_2010_geo.rename(columns={"ZCTA5CE10": "zcta"})
+         # cleaning ZCTA 2020
+        zcta_geo = zcta_geo.rename(columns={"ZCTA5CE20": "zcta"})
+        zcta_2010_geo = zcta_2010_geo.rename(columns={"ZCTA5CE10": "zcta"})
 
-    # load all zcta values within 5 boros
-    county_relfile, _ = load_zcta_rel_files(nyc_counties)
-    county_relfile["GEOID_ZCTA5_20"] = (
-        county_relfile["GEOID_ZCTA5_20"].astype(str).str.replace(".0", "")
-    )
-    # subset zctas just to those in the county relfile
-    zcta_geo = zcta_geo[zcta_geo["GEOID20"].isin(county_relfile["GEOID_ZCTA5_20"])]
-    # exclude single zcta in Long Island
-    zcta_geo = zcta_geo[~zcta_geo["zcta"].isin(["11040"])]
+        # load all zcta values within 5 boros
+        county_relfile, _ = load_zcta_rel_files(nyc_counties)
+        county_relfile["GEOID_ZCTA5_20"] = (
+            county_relfile["GEOID_ZCTA5_20"].astype(int).astype(str)
+        )
+        # subset zctas just to those in the county relfile
+        zcta_geo = zcta_geo[zcta_geo["GEOID20"].isin(county_relfile["GEOID_ZCTA5_20"])]
+        # exclude single zcta in Long Island
+        zcta_geo = zcta_geo[~zcta_geo["zcta"].isin(["11040"])]
 
-    # cleaning ZCTA 2010
-    # load 2010 relfile
-    df_zcta_rel_file_county = pd.read_csv(
-        "https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_county_rel_10.txt"
-    )
-    df_zcta_rel_file_county = df_zcta_rel_file_county[
-        df_zcta_rel_file_county["GEOID"].isin(nyc_counties)
-    ]
-    df_zcta_rel_file_county["ZCTA5"] = (
-        df_zcta_rel_file_county["ZCTA5"]
-        .astype(str)
-        .str.pad(width=5, side="left", fillchar="0")
-    )
-    zcta_2010_geo = zcta_2010_geo[
-        zcta_2010_geo["zcta"].isin(df_zcta_rel_file_county["ZCTA5"])
-    ]
-    # remove some areas that are technically naussau/Long Island
-    zcta_2010_geo = zcta_2010_geo[~zcta_2010_geo["zcta"].isin(["11040"])]
+        # cleaning ZCTA 2010
+        # load 2010 relfile
+        df_zcta_rel_file_county = pd.read_csv(
+            "https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_county_rel_10.txt"
+        )
+        df_zcta_rel_file_county = df_zcta_rel_file_county[
+            df_zcta_rel_file_county["GEOID"].isin(nyc_counties)
+        ]
+        df_zcta_rel_file_county["ZCTA5"] = (
+            df_zcta_rel_file_county["ZCTA5"]
+            .astype(str)
+            .str.pad(width=5, side="left", fillchar="0")
+        )
+        zcta_2010_geo = zcta_2010_geo[
+            zcta_2010_geo["zcta"].isin(df_zcta_rel_file_county["ZCTA5"])
+        ]
+        # remove some areas that are technically naussau/Long Island
+        zcta_2010_geo = zcta_2010_geo[~zcta_2010_geo["zcta"].isin(["11040"])]
+        
+        zcta_geo.to_file("_data/zcta_geo.geojson")
+        zcta_2010_geo.to_file("_data/zcta_2010_geo.geojson")
+    else:
+        zcta_geo = gpd.read_file("_data/zcta_geo.geojson")
+        zcta_2010_geo = gpd.read_file("_data/zcta_2010_geo.geojson")
 
     zcta_count = zcta_geo["zcta"].unique().shape[0]
     print(f"There are {zcta_count} unique ZCTAs in 2020")
@@ -160,16 +160,24 @@ def load_geospatial(open_data_path, nyc_counties):
     # load nyc tracts
     print("------------------------")
     print("Loading NYC Census Tracts")
-    tract_geo = gpd.read_file(
-        f"{open_data_path}/63ge-mke6.geojson?$limit=10000"
-    ).to_crs(2263)
+    if load_geospatial_data:
+        tract_geo = gpd.read_file(
+            f"{open_data_path}/63ge-mke6.geojson?$limit=10000"
+        ).to_crs(2263)
+        tract_geo.to_file("_data/tract_geo.geojson")
+    else:
+        tract_geo = gpd.read_file("_data/tract_geo.geojson")
     tract_count = tract_geo["geoid"].unique().shape[0]
     print(f"There are {tract_count} unique tracts")
 
     # load boros
     print("------------------------")
     print("Loading NYC Boroughs")
-    boros_geo = gpd.read_file(f"{open_data_path}/gthc-hcne.geojson").to_crs(2263)
+    if load_geospatial_data:
+        boros_geo = gpd.read_file(f"{open_data_path}/gthc-hcne.geojson").to_crs(2263)
+        boros_geo.to_file("_data/boros_geo.geojson")
+    else:
+        boros_geo = gpd.read_file("_data/boros_geo.geojson")
     print(f"There are {boros_geo['borocode'].unique().shape[0]} unique boroughs")
     return (nta_geo, zcta_geo, zcta_2010_geo, tract_geo, boros_geo)
 
@@ -231,7 +239,6 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
         mgd_data = xwalk.merge(gdf.drop(columns="geometry"), on=spatial_id, how="left")
     else:
         raise Exception(f"{method} not recognized!")
-        return None
 
     print(f"Merged data size: {mgd_data.shape}")
     print(f"Tract data size: {tract_data.shape}")
@@ -252,14 +259,19 @@ def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
     tract_rel_file = tract_rel_file.rename(
         columns={"GEOID_TRACT_20": "geoid", "GEOID_ZCTA5_20": "zcta_relfile"}
     )
-    tract_rel_file["geoid"] = tract_rel_file["geoid"].astype(str).str.replace(".0", "")
+    tract_rel_file["geoid"] = tract_rel_file["geoid"].astype(int).astype(str)
+
+    # remove rows where zcta is missing
+    tract_rel_file = tract_rel_file[(tract_rel_file['zcta_relfile'].astype(int).notna())]
+    print(f"Number of rows in rel file with non-missing ZCTA: {tract_rel_file.shape[0]}")
 
     zcta_tract_xwalk = tract_spatial_join(
         zcta_geo, tract_geo, method="spatial_overlap", spatial_id="zcta"
     )
-    df_comparison = zcta_tract_xwalk.merge(tract_rel_file, on="geoid", how="outer")
+    df_comparison = zcta_tract_xwalk.merge(tract_rel_file, on="geoid", how="inner")
+    
     df_comparison["zcta_relfile"] = (
-        df_comparison["zcta_relfile"].astype(str).str.replace(".0", "")
+        df_comparison["zcta_relfile"].astype(int).astype(str)
     )
     df_comparison = df_comparison[df_comparison["OID_TRACT_20"].notna()]
     df_comparison = df_comparison.sort_values(
@@ -269,7 +281,8 @@ def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
     print(
         f"\n% incorrect assignments: {(100*(df_comparison['zcta'] != df_comparison['zcta_relfile']).mean()).round(3)}%"
     )
-    print(f"Number of rows in rel file: {df_comparison.shape[0]}")
+    print(f"Dataset size: {df_comparison.shape[0]}")
+    
 
 
 ####################
@@ -499,7 +512,7 @@ def plot_simple_map(df, boros_geo, col, filename, categorical=False):
             legend_kwds={"shrink": 0.7},
         )
     else:
-        df[col] = df[col].astype(str).str.replace(".0", "")
+        df[col] = df[col].astype(int).astype(str)
         df.plot(
             column=col,
             ax=ax,
@@ -516,7 +529,7 @@ def plot_simple_map(df, boros_geo, col, filename, categorical=False):
 def plot_all_indices(hvi, nri, cdc, boros_geo):
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
     hvi = hvi.copy()
-    hvi["HVI_RANK"] = hvi["HVI_RANK"].astype(str).str.replace(".0", "")
+    hvi["HVI_RANK"] = hvi["HVI_RANK"].astype(int).astype(str)
     hvi.plot(
         column="HVI_RANK",
         ax=axes[0],
@@ -528,7 +541,7 @@ def plot_all_indices(hvi, nri, cdc, boros_geo):
 
     nri = nri.copy()
     nri["HWAV_EALTxSVIxRESL_q5"] = (
-        nri["HWAV_EALTxSVIxRESL_q5"].astype(str).str.replace(".0", "")
+        nri["HWAV_EALTxSVIxRESL_q5"].astype(int).astype(str)
     )
     nri.plot(
         column="HWAV_EALTxSVIxRESL_q5",
@@ -540,7 +553,7 @@ def plot_all_indices(hvi, nri, cdc, boros_geo):
 
     axes[1].set_title("(b) NRI")
     cdc = cdc.copy()
-    cdc["OVERALL_SCORE_q5"] = cdc["OVERALL_SCORE_q5"].astype(str).str.replace(".0", "")
+    cdc["OVERALL_SCORE_q5"] = cdc["OVERALL_SCORE_q5"].astype(int).astype(str)
     cdc.plot(
         column="OVERALL_SCORE_q5",
         ax=axes[2],
@@ -659,11 +672,14 @@ def check_missing_negative_value(df):
         if pd.api.types.is_numeric_dtype(df[var]):
             missing_val = df[var].isna().sum()
             val_lt0 = (df[var] < 0).sum()
+            notfinite = (np.isfinite(df[var])==False).sum()
 
             if missing_val > 0:
                 print(f"Number of missing values for {var} is: {missing_val}")
             if val_lt0 > 0:
                 print(f"Number of values < 0 for {var} is: {val_lt0}")
+            if notfinite > 0:
+                print(f"Number of values not finite for {var} is: {notfinite}")
 
 
 def check_unique_id(df, id):

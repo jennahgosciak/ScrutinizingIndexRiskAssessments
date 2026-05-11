@@ -42,7 +42,7 @@ def load_311(tract_geo, load_impacts=True):
 
         # drop duplicates via resolution description
         df_311["resolution_description"] = df_311["resolution_description"].fillna("")
-        df_311 = df_311[~df_311["resolution_description"].str.contains("duplicate")]
+        df_311 = df_311[~df_311["resolution_description"].str.contains("duplicat", case=False)]
         print(f"Data after dropping duplicates: {df_311.shape}")
 
         print(
@@ -197,7 +197,7 @@ def load_ems(load_impacts=True):
     return df_ems_summ
 
 
-def rank_ems(df, zcta_geo, rank_method, date_var="week", date_freq="W-MON"):
+def rank_ems(df, zcta_geo, rank_method):
     """Compute count of heat-related EMS incidents for each week 2021 - 2025, May - September"""
 
     # merge to full list of zctas, add in zeros

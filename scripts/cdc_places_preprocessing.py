@@ -83,7 +83,7 @@ def clean_cdc_places(df, id_var="geoid"):
     df_unhealthy = df[df["measure"].isin(measures_list_2024)]
 
     # check that we have correct number of health measures
-    assert df_unhealthy["measure"].drop_duplicates().shape[0] == len(measures_list_2024)
+    assert len(set(df_unhealthy["measure"]).difference(set(measures_list_2024))) == 0
     print(
         f"Number of unique health measures: {df_unhealthy[['measure', 'measureid']].drop_duplicates().shape[0]}"
     )
@@ -152,7 +152,6 @@ def cdc_nta_cleaning(df, health_cols: list[str]):
     # create a copy before modifying
     df_nta = df.copy()
 
-    """Produce CDC Places percentage estimates at the NTA level"""
     for col in health_cols:
         if ("totalpop" not in col.lower()) and (
             col not in ["data_value_HIGHCHOL_total", "data_value_BPMED_total"]
@@ -177,6 +176,7 @@ def cdc_nta_cleaning(df, health_cols: list[str]):
     # check percentages are all within 0, 1 range
     assert (df_nta[health_cdc_pct_cols].min() >= 0).all()
     assert (df_nta[health_cdc_pct_cols].max() <= 1).all()
+    assert np.isfinite(df_nta[health_cdc_pct_cols]).all().all()
 
     # produce a version that is just the max percent value across all health conditions
     df_nta["max_cdc_health_vars"] = (

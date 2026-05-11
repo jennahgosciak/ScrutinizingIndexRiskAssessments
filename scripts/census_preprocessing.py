@@ -18,7 +18,7 @@ acs_dict = (
 
 def load_acs(census, tract_geo, load_acs_data=True, year=2020):
     """Load ACS data via API or cached"""
-    if load_acs_data == True:
+    if load_acs_data:
         # load data from ACS
         print("------------------------")
         print(f"Loading data from the American Community Survey (ACS) for {year}")
@@ -74,7 +74,7 @@ def load_dec(census, tract_geo, load_dec_data=True, year=2020):
 
 def load_acs_zcta(census, zcta_geo, load_acs_data=True, year=2020):
     """Load data from the 2016-2020 ACS at ZCTA level"""
-    if load_acs_data == True:
+    if load_acs_data:
         # load data from ACS (ZCTA)
         acs_zcta = pd.DataFrame(
             census.acs5.get(
@@ -168,7 +168,6 @@ census_cols_hvi = (
 pct_vars = [
     "pct_over65",
     "pct_inpoverty",
-    "pct_inpoverty_75over",
     "pct_hh_gt65",
     "pct_black",
     "pct_over_75",
@@ -179,20 +178,15 @@ pct_vars = [
 def produce_pct(df):
     """Produce percentages for relevant ACS variabels"""
     # compute percentages
-    df.loc[:, "pct_black"] = df["black_nh_dec"] / df["totalpop_dec"]
-    df.loc[:, "pct_hh_gt65"] = df["hh_gt65"] / df["total_hh_age"]  # this is the denom
-
-    # percent individuals over 75 and in poverty / total pop
-    df.loc[:, "pct_inpoverty_75over"] = (
-        df[["inpoverty_75over_male", "inpoverty_75over_female"]].sum(axis=1)
-    ) / df["totalpop"]
+    df.loc[:, "pct_black"] = np.where(df["totalpop_dec"] > 0, df["black_nh_dec"] / df["totalpop_dec"], 0)
+    df.loc[:, "pct_hh_gt65"] = np.where(df["total_hh_age"] > 0, df["hh_gt65"] / df["total_hh_age"], 0)  # this is the denom
 
     # pct in poverty / total pop
-    df.loc[:, "pct_inpoverty"] = (df["poverty_status_inpoverty"]) / df["totalpop"]
+    df.loc[:, "pct_inpoverty"] = np.where(df["totalpop"] > 0, (df["poverty_status_inpoverty"]) / df["totalpop"], 0)
 
     # create pct over 65 variable
-    df.loc[:, "pct_over65"] = (df[age_vars].sum(axis=1)) / df["totalpop"]
-    df.loc[:, "pct_over_75"] = (df["total_over75"]) / df["totalpop"]
+    df.loc[:, "pct_over65"] = np.where(df["totalpop"] > 0, (df[age_vars].sum(axis=1)) / df["totalpop"], 0)
+    df.loc[:, "pct_over_75"] = np.where(df["totalpop"] > 0, (df["total_over75"]) / df["totalpop"], 0)
 
     # check age sums match
     if (
@@ -208,13 +202,15 @@ def produce_pct(df):
     ).any():
         raise Exception("Population age counts do not match")
 
-    df.loc[:, "nonwhite_nh_dec_pct"] = 1 - (
+    df.loc[:, "nonwhite_nh_dec_pct"] = np.where(df["totalpop_dec"] > 0, 1 - (
         df.loc[:, "white_nh_dec"] / df.loc[:, "totalpop_dec"]
-    )
+    ), 0)
 
     # check percent vars are within 0 and 1
     assert (df[pct_vars].min() >= 0).all()
     assert (df[pct_vars].max() <= 1).all()
+    print(np.isfinite(df[pct_vars]).all().all())
+    assert (np.isfinite(df[pct_vars]).all().all())
     return df
 
 
