@@ -44,7 +44,7 @@ def load_acs(census, tract_geo, load_acs_data=True, year=2020):
 
 def load_dec(census, tract_geo, load_dec_data=True, year=2020):
     """Load Decennial 2020 census data via API or cached"""
-    if load_dec_data == True:
+    if load_dec_data:
         # get decennial census data
         dec_df = pd.DataFrame(
             census.pl.get(

@@ -181,7 +181,48 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
 
         print(gdf.sort_values(var + "_rank", ascending=False)["ntaname"].head(10))
 
+def nta_tract_comparison_map(gdf, tract_gdf, nyc_boros):
+    """Produce NTA vs. Census tract map"""
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    gdf = gdf.copy()
+    tract_gdf = tract_gdf.copy()
+    gdf["HVI_nta_repl_q5"] = gdf["HVI_nta_repl_q5"].astype(str).str.replace(".0", "")
+    tract_gdf["HVI_tract_q5"] = (
+        tract_gdf["HVI_tract_q5"].astype(str).str.replace(".0", "")
+    )
 
+    gdf.plot(
+        column="HVI_nta_repl_q5",
+        ax=axes[0],
+        cmap="rocket_r",
+        legend=False,
+        edgecolor="none",
+    )
+    tract_gdf.plot(
+        column="HVI_tract_q5",
+        cmap="rocket_r",
+        ax=axes[1],
+        legend=True,
+        edgecolor="none",
+    )
+    axes[0].set_axis_off()
+    axes[1].set_axis_off()
+
+    axes[0].set_title("NYC HVI at the NTA level")
+    axes[1].set_title("NYC HVI at the census tract level")
+    nyc_boros.plot(ax=axes[0], facecolor="none", edgecolor="gray", lw=0.3)
+    nyc_boros.plot(ax=axes[1], facecolor="none", edgecolor="gray", lw=0.3)
+
+    plt.savefig(
+        "_figures/heat_vulnerability_nta_vs_census_tract.pdf",
+        bbox_inches="tight",
+        pad_inches=0,
+        dpi=300,
+    )
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+    
 def prep_for_plot(df, vars, orig_var, id_var):
     """Produce dataframe that's pivoted long to prepare for plot"""
     print("------------------------")
