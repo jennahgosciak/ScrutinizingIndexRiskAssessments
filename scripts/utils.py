@@ -515,13 +515,19 @@ def plot_simple_map(df, boros_geo, col, filename, categorical=False):
 
 def plot_all_indices(hvi, nri, cdc, boros_geo):
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
+    hvi = hvi.copy()
+    hvi["HVI_RANK"] = hvi["HVI_RANK"].astype(str).str.replace(".0", "")
     hvi.plot(
         column="HVI_RANK",
         ax=axes[0],
         cmap="rocket_r",
-        legend=False,
         edgecolor="none",
+        legend=True,
+        legend_kwds={"loc": "upper left", "bbox_to_anchor": (0.1, 1)},
     )
+
+    nri = nri.copy()
+    nri["HWAV_EALTxSVIxRESL_q5"] = nri["HWAV_EALTxSVIxRESL_q5"].astype(str).str.replace(".0", "")
     nri.plot(
         column="HWAV_EALTxSVIxRESL_q5",
         cmap="rocket_r",
@@ -538,8 +544,7 @@ def plot_all_indices(hvi, nri, cdc, boros_geo):
         ax=axes[2],
         cmap="rocket_r",
         edgecolor="none",
-        legend=True,
-        legend_kwds={"loc": "upper left", "bbox_to_anchor": (0.1, 1)},
+        legend=False
     )
     axes[0].set_axis_off()
     axes[1].set_axis_off()

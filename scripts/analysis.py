@@ -29,7 +29,7 @@ def rank_all_specifications(df, nta_geo, alt_specifications, rank_method):
 
     # producing rankings and quintiles for all specifications
     for var in alt_specifications:
-        print(f"Producing alt specification for {var}")
+        print(f"Ranking alt specification for {var}")
         df[var + "_rank"], df[var + "_q5"] = custom_qcut_function(
             df[var], method=rank_method
         )
@@ -87,13 +87,13 @@ def produce_all_specifications(df, health_zscore_cols):
         ["SURFACE_TEMP_z", "nonwhite_nh_dec_pct_z"],
         ["GREENSPACE_z", "PCT_HOUSEHOLDS_AC_z", "MEDIAN_INCOME_z"],
     )
-    print("Producing comorbidities (with average)")
+    print("Producing comorbidities (with max)")
     df["HVI_health_alt"] = produce_hvi_alternatives(
         df,
         ["SURFACE_TEMP_z", "PCT_BLACK_POP_z", "max_cdc_health_vars_z"],
         ["GREENSPACE_z", "PCT_HOUSEHOLDS_AC_z", "MEDIAN_INCOME_z"],
     )
-    print("Producing all (with averaged comorbidities)")
+    print("Producing all (with max comorbidities)")
     df["HVI_all_alt"] = produce_hvi_alternatives(
         df,
         [
@@ -307,7 +307,7 @@ def produce_scatter(df, orig_var, ax):
                 "Unchanged HVI score",
                 "Increased HVI score",
             ],
-            palette=[colorblind_cmap[2], "#808080", colorblind_cmap[1]],
+            palette=[colorblind_cmap[1], "#808080", colorblind_cmap[2]],
             style=df_temp["label"],
             markers=True,
             legend=False,
