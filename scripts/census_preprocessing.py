@@ -145,7 +145,6 @@ acs_pop_vars = [
     "hh_gt65",
     "total_hh_age",
     "total_over75",
-    "black",
 ]
 
 dec_pop_vars = [
