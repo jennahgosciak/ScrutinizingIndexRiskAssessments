@@ -177,6 +177,7 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
             dpi=300,
         )
         plt.show()
+        plt.close()
 
         print(gdf.sort_values(var + "_rank", ascending=False)["ntaname"].head(10))
 
@@ -277,7 +278,11 @@ def plot_nri(df, tract_geo, nyc_boros):
         "./_figures/nri_comparison.pdf", bbox_inches="tight", pad_inches=0, dpi=300
     )
     plt.show()
+    plt.close()
 
+##############################################
+# Main analysis scatter plots
+##############################################
 
 def produce_scatter(df, orig_var, ax):
     """Add scatter plot with formatting"""
@@ -438,7 +443,37 @@ def produce_facet_plot(df_hvi, df_tract_hvi, df_nri, id_vars, filename):
 
     plt.savefig(f"./_figures/{filename}", dpi=300, bbox_inches="tight", pad_inches=0)
     plt.show()
+    plt.close()
 
+def produce_nri_facet_plot(df_nri, filename):
+    """Produces main facet plot"""
+    print("------------------------")
+    print("Producing NRI facet plot (appendix fig. 15)")
+    fig, axes = plt.subplots(1, 2, figsize=(7.3, 3.65), layout="constrained")
+
+    for i, ax in enumerate(axes):
+        ax.axvline(20, color="gray", linestyle="dashed")
+        ax.axvline(40, color="gray", linestyle="dashed")
+        ax.axvline(60, color="gray", linestyle="dashed")
+        ax.axvline(80, color="gray", linestyle="dashed")
+        ax.axvline(100, color="gray", linestyle="dashed")
+
+        if i == 0:
+            produce_scatter(df_nri[df_nri["variable"] == "HWAV_EALT"], "HVI_repl", ax)
+            ax.set_title("EAL")
+        elif i == 1:
+            produce_scatter(
+                df_nri[df_nri["variable"] == "HWAV_EALTxSVIxRESL"], "HVI_repl", ax
+            )
+            ax.set_title("EAL x f(SV / CR)")
+            patches(ax, colorblind_cmap)
+
+        default_plot(ax)
+        scatter_plot_formatting(fig, ax)
+
+    plt.savefig(f"./_figures/{filename}", dpi=300, bbox_inches="tight", pad_inches=0)
+    plt.show()
+    plt.close()
 
 ##############################################
 # Check Sensitivity of Results

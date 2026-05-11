@@ -524,6 +524,7 @@ def plot_simple_map(df, boros_geo, col, filename, categorical=False):
     ax.set_axis_off()
     plt.savefig(f"./_figures/{filename}", dpi=300, bbox_inches="tight", pad_inches=0)
     plt.show()
+    plt.close()
 
 
 def plot_all_indices(hvi, nri, cdc, boros_geo):
@@ -576,6 +577,7 @@ def plot_all_indices(hvi, nri, cdc, boros_geo):
     )
     plt.tight_layout()
     plt.show()
+    plt.close()
 
 
 def plot_lst(gdf_lst, boros_geo):
@@ -595,6 +597,7 @@ def plot_lst(gdf_lst, boros_geo):
         "./_figures/average_lst.pdf", bbox_inches="tight", pad_inches=0, dpi=300
     )
     plt.show()
+    plt.close()
 
 
 ######################
