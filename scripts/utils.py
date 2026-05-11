@@ -207,13 +207,26 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
     elif method == "spatial_overlap":
         print(f"Tract CRS: {tract_data.crs}")
         print(f"ZCTA CRS: {gdf.crs}")
-        overlap = gpd.overlay(tract_data, gdf, how="intersection", make_valid=True)
-        assert (overlap["geometry"].is_valid).mean()
+        assert tract_data["geometry"].is_valid.all()
+        assert gdf["geometry"].is_valid.all()
+
+        overlap = gpd.overlay(
+            tract_data, gdf, how="intersection", make_valid=True, keep_geom_type=False
+        )
+        assert (overlap["geometry"].is_valid).all()
+        assert (
+            overlap[
+                (overlap.geometry.is_empty) | (overlap.geometry.is_empty.isna())
+            ].shape[0]
+            == 0
+        )
+        print(f"Overlap shape: {overlap.shape[0]}")
 
         overlap["area_overlap"] = overlap["geometry"].area
         overlap = overlap.sort_values(
             ["geoid", "area_overlap"], ascending=False
         ).drop_duplicates(subset="geoid", keep="first")
+        print(f"Taking the max area from the intersection: {overlap.shape[0]}")
         xwalk = overlap[["geoid", spatial_id]]
         mgd_data = xwalk.merge(gdf.drop(columns="geometry"), on=spatial_id, how="left")
     else:
@@ -222,6 +235,13 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
 
     print(f"Merged data size: {mgd_data.shape}")
     print(f"Tract data size: {tract_data.shape}")
+
+    unmgd = tract_data.loc[~tract_data["geoid"].isin(mgd_data["geoid"])]
+    print(f"Census tracts that didn't merge to ZCTA/DPS (num = {unmgd.shape[0]}):")
+    for i, row in unmgd.iterrows():
+        print(
+            f"      GEOID: {row['geoid']}, CDTA name: {row['cdtaname']}, and NTA name: {row['ntaname']}"
+        )
     print(f"ZCTA/DPS data size: {gdf.shape}")
     return mgd_data
 
@@ -337,6 +357,8 @@ def load_nri_data(nyc_counties, method, download_nri_data=True):
         nri_data = nri_data[
             nri_data["State-County FIPS Code"].astype(int).isin(nyc_counties)
         ]
+        if nri_data["State-County FIPS Code"].unique().shape[0] != 5:
+            raise Exception("Not enough unique counties for NYC")
         nri_data.to_parquet("./_data/nri_data.parquet")
     else:
         nri_data = pd.read_parquet("./_data/nri_data.parquet")
@@ -363,6 +385,10 @@ def load_nri_data(nyc_counties, method, download_nri_data=True):
     nri_data["HWAV_EALTxSVIxRESL_rank"], nri_data["HWAV_EALTxSVIxRESL_q5"] = (
         custom_qcut_function(nri_data["HWAV_EALTxSVIxRESL"], method)
     )
+
+    print("\nDistribution of quintiles")
+    print(nri_data["HWAV_EALT_q5"].value_counts())
+    print(nri_data["HWAV_EALTxSVIxRESL_q5"].value_counts())
     return nri_data
 
 
@@ -395,17 +421,46 @@ def load_cdc_hhi_from_url():
         zip_ref.extractall("./_data/HHI_Data/")
 
 
-def load_and_clean_hhi(zcta_geo, tract_geo, join_method, rank_method):
+def check_cdc_hhi_merge(df_cdc, zcta_geo, nyc_counties):
+    """Load ZCTA 2010 county relationship file and check CDC HHI ZCTA merge"""
+    df_zcta_rel_file_county = pd.read_csv(
+        "https://www2.census.gov/geo/docs/maps-data/data/rel/zcta_county_rel_10.txt"
+    )
+    df_zcta_rel_file_county = df_zcta_rel_file_county[
+        df_zcta_rel_file_county["GEOID"].isin(nyc_counties)
+    ]
+    df_zcta_rel_file_county["zcta"] = (
+        df_zcta_rel_file_county["ZCTA5"]
+        .astype(str)
+        .str.pad(width=5, side="left", fillchar="0")
+    )
+
+    # for those not merging, how many are in the relationship file? should only be one that was manually excluded
+    assert (
+        df_cdc[~df_cdc["zcta"].isin(zcta_geo["zcta"])].merge(
+            df_zcta_rel_file_county, on="zcta"
+        )["zcta"]
+        == ["11040"]
+    ).all()
+
+
+def load_and_clean_hhi(zcta_geo, tract_geo, nyc_counties, join_method, rank_method):
     """Load HHI data from local folder and clean"""
     print("------------------------")
-    print("Loading and cleaning CDC HHI Data")
+    print("Loading CDC HHI data from local file and cleaning")
     df_cdc_hhi = pd.read_excel("./_data/HHI_Data/HHI Data 2024 United States.xlsx")
     df_cdc_hhi = df_cdc_hhi[df_cdc_hhi["STATE"].isin(["NY"])].rename(
         columns={"ZCTA": "zcta"}
     )
-    df_cdc_hhi["zcta"] = df_cdc_hhi["zcta"].astype(str)
+    df_cdc_hhi["zcta"] = (
+        df_cdc_hhi["zcta"].astype(str).str.pad(width=5, side="left", fillchar="0")
+    )
+    assert (df_cdc_hhi["zcta"].astype(str).apply(lambda x: len(x)).unique() == 5).all()
 
-    # subset to local data, join to zcta data
+    # check cdc hhi merge to zcta
+    check_cdc_hhi_merge(df_cdc_hhi, zcta_geo, nyc_counties)
+
+    # subset to local data, join to zcta 2010 data
     df_cdc_hhi_geo = zcta_geo[["zcta", "geometry"]].merge(df_cdc_hhi, on="zcta")
     df_cdc_hhi_geo["PR_HRI"] = df_cdc_hhi_geo["PR_HRI"].astype(float)
 
@@ -458,13 +513,77 @@ def plot_simple_map(df, boros_geo, col, filename, categorical=False):
     plt.show()
 
 
+def plot_all_indices(hvi, nri, cdc, boros_geo):
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
+    hvi.plot(
+        column="HVI_RANK",
+        ax=axes[0],
+        cmap="rocket_r",
+        legend=False,
+        edgecolor="none",
+    )
+    nri.plot(
+        column="HWAV_EALTxSVIxRESL_q5",
+        cmap="rocket_r",
+        ax=axes[1],
+        legend=False,
+        edgecolor="none",
+    )
+
+    axes[1].set_title("(b) NRI")
+    cdc = cdc.copy()
+    cdc["OVERALL_SCORE_q5"] = cdc["OVERALL_SCORE_q5"].astype(str).str.replace(".0", "")
+    cdc.plot(
+        column="OVERALL_SCORE_q5",
+        ax=axes[2],
+        cmap="rocket_r",
+        edgecolor="none",
+        legend=True,
+        legend_kwds={"loc": "upper left", "bbox_to_anchor": (0.1, 1)},
+    )
+    axes[0].set_axis_off()
+    axes[1].set_axis_off()
+    axes[2].set_axis_off()
+
+    axes[0].set_title("(a) NYC HVI")
+    axes[2].set_title("(c) CDC HHI")
+
+    boros_geo.plot(ax=axes[0], facecolor="none", edgecolor="gray", lw=0.3)
+    boros_geo.plot(ax=axes[1], facecolor="none", edgecolor="gray", lw=0.3)
+    boros_geo.plot(ax=axes[2], facecolor="none", edgecolor="gray", lw=0.3)
+    plt.savefig(
+        "./_figures/all_index_tools.pdf", bbox_inches="tight", pad_inches=0, dpi=300
+    )
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_lst(gdf_lst, boros_geo):
+    """Plot average land surface temperature"""
+    fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+    gdf_lst.plot(
+        column="_mean_f",
+        ax=ax,
+        cmap="rocket_r",
+        edgecolor="none",
+        legend=True,
+        legend_kwds={"shrink": 0.8},
+    )
+    ax.set_axis_off()
+    boros_geo.plot(ax=ax, facecolor="none", edgecolor="gray", lw=0.3)
+    plt.savefig(
+        "./_figures/average_lst.pdf", bbox_inches="tight", pad_inches=0, dpi=300
+    )
+    plt.show()
+
+
 ######################
 # Load ECOSTRESS Data
 ######################
 def convert_temp_units(df, cols):
     """Converts Kelvin to Farhenheit"""
     for col in cols:
-        df[col + "_f"] = ((df[col] - 273.15) * 9 / 5) + 32
+        df[col + "_f"] = (df[col] * 9 / 5) - 459.67
     return df
 
 
@@ -547,7 +666,8 @@ def check_unique_id(df, id):
 
 
 def standardize_values(df, vars, rank_method):
-    """Produce z-scores and percentiles for inputs"""
+    """Produce z-scores, percentiles, and quintiles for inputs"""
+    df = df.copy()
     for var in vars:
         df[var + "_z"] = (df[var] - df[var].mean()) / df[var].std()
         df[var + "_rank"], df[var + "_q5"] = custom_qcut_function(

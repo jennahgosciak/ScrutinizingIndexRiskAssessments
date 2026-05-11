@@ -25,6 +25,8 @@ def rank_all_specifications(df, nta_geo, alt_specifications, rank_method):
     """Rank all specifications"""
     print("------------------------")
     print("Ranking all specifications")
+    df = df.copy()
+
     # producing rankings and quintiles for all specifications
     for var in alt_specifications:
         print(f"Producing alt specification for {var}")
@@ -34,9 +36,9 @@ def rank_all_specifications(df, nta_geo, alt_specifications, rank_method):
     # check differences
     print()
     print("Comparing differences between original and replicated HVI score")
-    print(df[["HVI_RANK", "HVI_raw_q5"]].value_counts())
+    print(df[["HVI_RANK", "HVI_repl_q5"]].value_counts())
     print(
-        f"Accuracy of replicated HVI (5-pt scale): {100*(df['HVI_RANK'] == df['HVI_raw_q5']).mean().round(2)}%"
+        f"Accuracy of replicated HVI (5-pt scale): {100*(df['HVI_RANK'] == df['HVI_repl_q5']).mean().round(2)}%"
     )
 
     # merge to nta data
@@ -52,7 +54,7 @@ def produce_all_specifications(df, health_zscore_cols):
     print("------------------------")
     print("Producing all specifications")
     print("Reproducing original")
-    df["HVI_raw"] = produce_hvi_alternatives(
+    df["HVI_repl"] = produce_hvi_alternatives(
         df,
         ["SURFACE_TEMP_z", "PCT_BLACK_POP_z"],
         ["GREENSPACE_z", "PCT_HOUSEHOLDS_AC_z", "MEDIAN_INCOME_z"],
@@ -128,7 +130,7 @@ def compute_risk_increase(df, vars):
 def summarize_agreement(df, vars, latex=False):
     """Produce agreement summaries for different HVI specifications compard to original HVI risk scores"""
     for var in vars:
-        df[var + "_match"] = df[var + "_q5"] == df["HVI_raw_q5"]
+        df[var + "_match"] = df[var + "_q5"] == df["HVI_repl_q5"]
 
     agreement_summary = df[[x + "_match" for x in vars]].mean() * 100
 
@@ -141,7 +143,7 @@ def summarize_agreement(df, vars, latex=False):
 
 def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
     """Produce maps corresponding to increases in risk (HVI risk = 4 or 5)"""
-    vars = [x for x in vars if x != "HVI_raw"]
+    vars = [x for x in vars if x != "HVI_repl"]
     for i, var in enumerate(vars):
         gdf[var + "_q5"] = gdf[var + "_q5"].astype(str).str.replace(".0", "")
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
@@ -340,12 +342,12 @@ def test_sensitivity_health_specification(
     )
 
     rank_corr = (
-        df[["HVI_raw_rank", "HVI_health_sens_rank"]]
+        df[["HVI_repl_rank", "HVI_health_sens_rank"]]
         .corr(method=correlation_method)
         .iloc[0, 1]  # extract relevant correlation value
     )
     q5_corr = (
-        df[["HVI_raw_q5", "HVI_health_sens_q5"]]
+        df[["HVI_repl_q5", "HVI_health_sens_q5"]]
         .corr(method=correlation_method)
         .iloc[0, 1]  # extract relevant correlation value
     )
