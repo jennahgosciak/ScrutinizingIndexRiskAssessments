@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import itertools
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from scripts.utils import *
@@ -120,15 +121,17 @@ def produce_correlations(df, vars, correlation_method, latex=True):
 
 def compute_risk_increase(df, vars):
     """Identify where any of the input variables lead to an increase in HVI risk to HVI=4 or 5"""
+    df = df.copy()
     for var in vars:
         df[var + "_increase"] = (
-            df["HVI_RANK"].astype(int) < df[var + "_q5"].astype(int)
+            df["HVI_repl_q5"].astype(int) < 4
         ) & (df[var + "_q5"].isin([4, 5]).astype(int))
     return df
 
 
 def summarize_agreement(df, vars, latex=False):
     """Produce agreement summaries for different HVI specifications compard to original HVI risk scores"""
+    df = df.copy()
     for var in vars:
         df[var + "_match"] = df[var + "_q5"] == df["HVI_repl_q5"]
 
@@ -143,6 +146,7 @@ def summarize_agreement(df, vars, latex=False):
 
 def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
     """Produce maps corresponding to increases in risk (HVI risk = 4 or 5)"""
+    gdf = gdf.copy()
     vars = [x for x in vars if x != "HVI_repl"]
     for i, var in enumerate(vars):
         gdf[var + "_q5"] = gdf[var + "_q5"].astype(str).str.replace(".0", "")
@@ -154,14 +158,14 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
             legend=True,
             edgecolor="none",
         )
-        gdf[gdf[var + "_increase"] == True].to_crs(2263).plot(
+        gdf[gdf[var + "_increase"] == True].plot(
             facecolor=colorblind_cmap[1], ax=axes[1], legend=True, edgecolor="none"
         )
         axes[0].set_axis_off()
         axes[1].set_axis_off()
 
         axes[0].set_title(titles[i])
-        axes[1].set_title("NTAs with increased risk of 4 or 5")
+        axes[1].set_title("NTAs with increased risk scores of 4 or 5")
 
         nyc_boros.plot(ax=axes[0], facecolor="none", edgecolor="gray", lw=0.3)
         nyc_boros.plot(ax=axes[1], facecolor="none", edgecolor="gray", lw=0.3)
@@ -200,16 +204,6 @@ def prep_for_plot(df, vars, orig_var, id_var):
     df_melt_q5["variable"] = df_melt_q5["variable"].str.replace("_q5", "")
     df_melt_q5 = df_melt_q5.merge(df_melt, on=[orig_var + "_rank", id_var, "variable"])
 
-    # add color label
-    df_melt_q5["color"] = np.select(
-        [
-            df_melt_q5[f"{orig_var}_q5"] < df_melt_q5["q5"],
-            df_melt_q5[f"{orig_var}_q5"] > df_melt_q5["q5"],
-        ],
-        [colorblind_cmap[2], colorblind_cmap[1]],
-        "gray",
-    )
-
     # add data label
     df_melt_q5["label"] = np.select(
         [
@@ -228,7 +222,6 @@ def prep_for_plot(df, vars, orig_var, id_var):
             "variable",
             f"{orig_var}_rank",
             f"{orig_var}_q5",
-            "color",
             "label",
         ]
     ]
@@ -311,11 +304,138 @@ def produce_scatter(df, orig_var, ax):
             style=df_temp["label"],
             markers=True,
             legend=False,
-            s=40,
+            s=50,
             alpha=0.6,
             linewidth=0,
             ax=ax,
         )
+
+def patches(ax, colorblind_cmap):
+    decrease_patch = mpl.lines.Line2D(
+        [0],
+        [0],
+        marker="o",
+        markerfacecolor=colorblind_cmap[1],
+        markersize=10,
+        markeredgecolor="none",
+        ls="",
+        label="Decreased score",
+    )
+    increase_patch = mpl.lines.Line2D(
+        [0],
+        [0],
+        marker="s",
+        markerfacecolor=colorblind_cmap[2],
+        markersize=10,
+        markeredgecolor="none",
+        ls="",
+        label="Increased score",
+    )
+    nochange_patch = mpl.lines.Line2D(
+        [0],
+        [0],
+        marker="X",
+        markerfacecolor="gray",
+        ls="",
+        markersize=10,
+        markeredgecolor="none",
+        label="Unchanged score",
+    )
+    ax.legend(
+        handles=[increase_patch, nochange_patch, decrease_patch],
+        loc="lower right",
+        fontsize=10,
+    )
+    
+def scatter_plot_formatting(fig, ax):
+    """Default formatting for scatter plot"""
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_xlim((0, 100))
+    ax.set_ylim((0, 100))
+
+    ax.text(
+        19,
+        95,
+        "1",
+        horizontalalignment="right",
+        color="black",
+        fontweight="bold",
+        fontsize=14,
+        bbox=dict(facecolor="white", pad=0, alpha=0.6),
+    )
+    ax.text(
+        39,
+        95,
+        "2",
+        horizontalalignment="right",
+        color="black",
+        fontweight="bold",
+        fontsize=14,
+        bbox=dict(facecolor="white", pad=0, alpha=0.6),
+    )
+    ax.text(
+        59,
+        95,
+        "3",
+        horizontalalignment="right",
+        color="black",
+        fontweight="bold",
+        fontsize=14,
+        bbox=dict(facecolor="white", pad=0, alpha=0.6),
+    )
+    ax.text(
+        79,
+        95,
+        "4",
+        horizontalalignment="right",
+        color="black",
+        fontweight="bold",
+        fontsize=14,
+        bbox=dict(facecolor="white", pad=0, alpha=0.6),
+    )
+    ax.text(
+        99,
+        95,
+        "5",
+        horizontalalignment="right",
+        color="black",
+        fontweight="bold",
+        fontsize=14,
+        bbox=dict(facecolor="white", pad=0, alpha=0.6),
+    )
+    fig.supylabel("New Percentile Ranking")
+    fig.supxlabel("Original HVI prioritizations (percentile ranking)")
+
+
+def produce_facet_plot(df_hvi, df_tract_hvi, df_nri, id_vars, filename):
+    """Produces main facet plot"""
+    print("------------------------")
+    print("Producing main facet plot (fig. 2)")
+    fig, axes = plt.subplots(1, 3, figsize=(11, 3.65), layout="constrained")
+
+    for i, ax in enumerate(axes):
+        ax.axvline(20, color="gray", linestyle="dashed")
+        ax.axvline(40, color="gray", linestyle="dashed")
+        ax.axvline(60, color="gray", linestyle="dashed")
+        ax.axvline(80, color="gray", linestyle="dashed")
+        ax.axvline(100, color="gray", linestyle="dashed")
+
+        if i == 0:
+            produce_scatter(df_hvi, id_vars[i], ax)
+            ax.set_title("(a) Alternative model specifications")
+        elif i == 1:
+            produce_scatter(df_tract_hvi, id_vars[i], ax)
+            ax.set_title("(b) HVI prioritization (tract-level)")
+        elif i == 2:
+            produce_scatter(df_nri, id_vars[2], ax)
+            ax.set_title("(c) NRI specifications")
+            patches(ax, colorblind_cmap)
+        default_plot(ax)
+        scatter_plot_formatting(fig, ax)
+
+    plt.savefig(f"./_figures/{filename}", dpi=300, bbox_inches="tight", pad_inches=0)
+    plt.show()
 
 
 ##############################################
@@ -331,6 +451,7 @@ def test_sensitivity_health_specification(
     Tests the sensitivity of the choice of comorbidities for the health specification.
     For any combination of health columns, produces rankings and quintiles.
     """
+    df = df.copy()
     df["HVI_health_sens"] = produce_hvi_alternatives(
         df,
         ["SURFACE_TEMP_z", "PCT_BLACK_POP_z"] + list(health_cols),
