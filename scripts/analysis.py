@@ -181,6 +181,7 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
 
         print(gdf.sort_values(var + "_rank", ascending=False)["ntaname"].head(10))
 
+
 def nta_tract_comparison_map(gdf, tract_gdf, nyc_boros):
     """Produce NTA vs. Census tract map"""
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
@@ -222,7 +223,8 @@ def nta_tract_comparison_map(gdf, tract_gdf, nyc_boros):
     plt.tight_layout()
     plt.show()
     plt.close()
-    
+
+
 def prep_for_plot(df, vars, orig_var, id_var):
     """Produce dataframe that's pivoted long to prepare for plot"""
     print("------------------------")
@@ -321,9 +323,11 @@ def plot_nri(df, tract_geo, nyc_boros):
     plt.show()
     plt.close()
 
+
 ##############################################
 # Main analysis scatter plots
 ##############################################
+
 
 def produce_scatter(df, orig_var, ax):
     """Add scatter plot with formatting"""
@@ -486,6 +490,7 @@ def produce_facet_plot(df_hvi, df_tract_hvi, df_nri, id_vars, filename):
     plt.show()
     plt.close()
 
+
 def produce_nri_facet_plot(df_nri, filename):
     """Produces main facet plot"""
     print("------------------------")
@@ -515,6 +520,7 @@ def produce_nri_facet_plot(df_nri, filename):
     plt.savefig(f"./_figures/{filename}", dpi=300, bbox_inches="tight", pad_inches=0)
     plt.show()
     plt.close()
+
 
 ##############################################
 # Check Sensitivity of Results

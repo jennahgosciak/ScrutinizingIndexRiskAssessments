@@ -88,13 +88,13 @@ def load_geospatial(open_data_path, nyc_counties, load_geospatial_data=True):
     print("Loading NTA data")
     if load_geospatial_data:
         # nta geo
-        nta_geo = gpd.read_file(f"{open_data_path}/9nt8-h7nd.geojson?$limit=100000").to_crs(
-            2263
-        )
+        nta_geo = gpd.read_file(
+            f"{open_data_path}/9nt8-h7nd.geojson?$limit=100000"
+        ).to_crs(2263)
         nta_geo.to_file("_data/nta_geo.geojson")
     else:
         nta_geo = gpd.read_file("_data/nta_geo.geojson")
-    
+
     nta_count = nta_geo["nta2020"].unique().shape[0]
     print(f"There are {nta_count} unique neighborhoods")
 
@@ -110,7 +110,7 @@ def load_geospatial(open_data_path, nyc_counties, load_geospatial_data=True):
             "https://www2.census.gov/geo/tiger/TIGER2010/ZCTA5/2010/tl_2010_36_zcta510.zip"
         ).to_crs(2263)
 
-         # cleaning ZCTA 2020
+        # cleaning ZCTA 2020
         zcta_geo = zcta_geo.rename(columns={"ZCTA5CE20": "zcta"})
         zcta_2010_geo = zcta_2010_geo.rename(columns={"ZCTA5CE10": "zcta"})
 
@@ -142,7 +142,7 @@ def load_geospatial(open_data_path, nyc_counties, load_geospatial_data=True):
         ]
         # remove some areas that are technically naussau/Long Island
         zcta_2010_geo = zcta_2010_geo[~zcta_2010_geo["zcta"].isin(["11040"])]
-        
+
         zcta_geo.to_file("_data/zcta_geo.geojson")
         zcta_2010_geo.to_file("_data/zcta_2010_geo.geojson")
     else:
@@ -262,14 +262,18 @@ def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
     tract_rel_file["geoid"] = tract_rel_file["geoid"].astype(int).astype(str)
 
     # remove rows where zcta is missing
-    tract_rel_file = tract_rel_file[(tract_rel_file['zcta_relfile'].astype(int).notna())]
-    print(f"Number of rows in rel file with non-missing ZCTA: {tract_rel_file.shape[0]}")
+    tract_rel_file = tract_rel_file[
+        (tract_rel_file["zcta_relfile"].astype(int).notna())
+    ]
+    print(
+        f"Number of rows in rel file with non-missing ZCTA: {tract_rel_file.shape[0]}"
+    )
 
     zcta_tract_xwalk = tract_spatial_join(
         zcta_geo, tract_geo, method="spatial_overlap", spatial_id="zcta"
     )
     df_comparison = zcta_tract_xwalk.merge(tract_rel_file, on="geoid", how="inner")
-    
+
     df_comparison["zcta_relfile"] = (
         df_comparison["zcta_relfile"].astype(int).astype(str)
     )
@@ -282,7 +286,6 @@ def check_census_relfile_matches(nyc_counties, zcta_geo, tract_geo):
         f"\n% incorrect assignments: {(100*(df_comparison['zcta'] != df_comparison['zcta_relfile']).mean()).round(3)}%"
     )
     print(f"Dataset size: {df_comparison.shape[0]}")
-    
 
 
 ####################
@@ -541,9 +544,7 @@ def plot_all_indices(hvi, nri, cdc, boros_geo):
     )
 
     nri = nri.copy()
-    nri["HWAV_EALTxSVIxRESL_q5"] = (
-        nri["HWAV_EALTxSVIxRESL_q5"].astype(int).astype(str)
-    )
+    nri["HWAV_EALTxSVIxRESL_q5"] = nri["HWAV_EALTxSVIxRESL_q5"].astype(int).astype(str)
     nri.plot(
         column="HWAV_EALTxSVIxRESL_q5",
         cmap="rocket_r",
@@ -675,7 +676,7 @@ def check_missing_negative_value(df):
         if pd.api.types.is_numeric_dtype(df[var]):
             missing_val = df[var].isna().sum()
             val_lt0 = (df[var] < 0).sum()
-            notfinite = (np.isfinite(df[var])==False).sum()
+            notfinite = (np.isfinite(df[var]) == False).sum()
 
             if missing_val > 0:
                 print(f"Number of missing values for {var} is: {missing_val}")

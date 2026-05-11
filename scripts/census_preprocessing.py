@@ -178,15 +178,25 @@ pct_vars = [
 def produce_pct(df):
     """Produce percentages for relevant ACS variabels"""
     # compute percentages
-    df.loc[:, "pct_black"] = np.where(df["totalpop_dec"] > 0, df["black_nh_dec"] / df["totalpop_dec"], 0)
-    df.loc[:, "pct_hh_gt65"] = np.where(df["total_hh_age"] > 0, df["hh_gt65"] / df["total_hh_age"], 0)  # this is the denom
+    df.loc[:, "pct_black"] = np.where(
+        df["totalpop_dec"] > 0, df["black_nh_dec"] / df["totalpop_dec"], 0
+    )
+    df.loc[:, "pct_hh_gt65"] = np.where(
+        df["total_hh_age"] > 0, df["hh_gt65"] / df["total_hh_age"], 0
+    )  # this is the denom
 
     # pct in poverty / total pop
-    df.loc[:, "pct_inpoverty"] = np.where(df["totalpop"] > 0, (df["poverty_status_inpoverty"]) / df["totalpop"], 0)
+    df.loc[:, "pct_inpoverty"] = np.where(
+        df["totalpop"] > 0, (df["poverty_status_inpoverty"]) / df["totalpop"], 0
+    )
 
     # create pct over 65 variable
-    df.loc[:, "pct_over65"] = np.where(df["totalpop"] > 0, (df[age_vars].sum(axis=1)) / df["totalpop"], 0)
-    df.loc[:, "pct_over_75"] = np.where(df["totalpop"] > 0, (df["total_over75"]) / df["totalpop"], 0)
+    df.loc[:, "pct_over65"] = np.where(
+        df["totalpop"] > 0, (df[age_vars].sum(axis=1)) / df["totalpop"], 0
+    )
+    df.loc[:, "pct_over_75"] = np.where(
+        df["totalpop"] > 0, (df["total_over75"]) / df["totalpop"], 0
+    )
 
     # check age sums match
     if (
@@ -202,15 +212,17 @@ def produce_pct(df):
     ).any():
         raise Exception("Population age counts do not match")
 
-    df.loc[:, "nonwhite_nh_dec_pct"] = np.where(df["totalpop_dec"] > 0, 1 - (
-        df.loc[:, "white_nh_dec"] / df.loc[:, "totalpop_dec"]
-    ), 0)
+    df.loc[:, "nonwhite_nh_dec_pct"] = np.where(
+        df["totalpop_dec"] > 0,
+        1 - (df.loc[:, "white_nh_dec"] / df.loc[:, "totalpop_dec"]),
+        0,
+    )
 
     # check percent vars are within 0 and 1
     assert (df[pct_vars].min() >= 0).all()
     assert (df[pct_vars].max() <= 1).all()
     print(np.isfinite(df[pct_vars]).all().all())
-    assert (np.isfinite(df[pct_vars]).all().all())
+    assert np.isfinite(df[pct_vars]).all().all()
     return df
 
 

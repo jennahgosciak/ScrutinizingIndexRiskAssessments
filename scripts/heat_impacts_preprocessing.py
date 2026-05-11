@@ -42,7 +42,9 @@ def load_311(tract_geo, load_impacts=True):
 
         # drop duplicates via resolution description
         df_311["resolution_description"] = df_311["resolution_description"].fillna("")
-        df_311 = df_311[~df_311["resolution_description"].str.contains("duplicat", case=False)]
+        df_311 = df_311[
+            ~df_311["resolution_description"].str.contains("duplicat", case=False)
+        ]
         print(f"Data after dropping duplicates: {df_311.shape}")
 
         print(
