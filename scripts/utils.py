@@ -210,7 +210,9 @@ def tract_spatial_join(gdf, tract_data, method, spatial_id):
         assert tract_data["geometry"].is_valid.all()
         assert gdf["geometry"].is_valid.all()
 
-        overlap = gpd.overlay(tract_data, gdf, how="intersection", keep_geom_type=False)
+        overlap = gpd.overlay(
+            tract_data, gdf, how="intersection", make_valid=True, keep_geom_type=False
+        )
         assert (overlap["geometry"].is_valid).all()
         assert (
             overlap[
