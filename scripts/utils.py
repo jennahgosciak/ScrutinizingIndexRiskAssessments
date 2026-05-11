@@ -527,7 +527,9 @@ def plot_all_indices(hvi, nri, cdc, boros_geo):
     )
 
     nri = nri.copy()
-    nri["HWAV_EALTxSVIxRESL_q5"] = nri["HWAV_EALTxSVIxRESL_q5"].astype(str).str.replace(".0", "")
+    nri["HWAV_EALTxSVIxRESL_q5"] = (
+        nri["HWAV_EALTxSVIxRESL_q5"].astype(str).str.replace(".0", "")
+    )
     nri.plot(
         column="HWAV_EALTxSVIxRESL_q5",
         cmap="rocket_r",
@@ -544,7 +546,7 @@ def plot_all_indices(hvi, nri, cdc, boros_geo):
         ax=axes[2],
         cmap="rocket_r",
         edgecolor="none",
-        legend=False
+        legend=False,
     )
     axes[0].set_axis_off()
     axes[1].set_axis_off()

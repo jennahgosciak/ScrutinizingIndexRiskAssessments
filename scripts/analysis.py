@@ -123,9 +123,9 @@ def compute_risk_increase(df, vars):
     """Identify where any of the input variables lead to an increase in HVI risk to HVI=4 or 5"""
     df = df.copy()
     for var in vars:
-        df[var + "_increase"] = (
-            df["HVI_repl_q5"].astype(int) < 4
-        ) & (df[var + "_q5"].isin([4, 5]).astype(int))
+        df[var + "_increase"] = (df["HVI_repl_q5"].astype(int) < 4) & (
+            df[var + "_q5"].isin([4, 5]).astype(int)
+        )
     return df
 
 
@@ -310,6 +310,7 @@ def produce_scatter(df, orig_var, ax):
             ax=ax,
         )
 
+
 def patches(ax, colorblind_cmap):
     decrease_patch = mpl.lines.Line2D(
         [0],
@@ -346,7 +347,8 @@ def patches(ax, colorblind_cmap):
         loc="lower right",
         fontsize=10,
     )
-    
+
+
 def scatter_plot_formatting(fig, ax):
     """Default formatting for scatter plot"""
     ax.set_xlabel("")
