@@ -329,8 +329,6 @@ def clean_dps(dps_geo, xwalk):
         "CUSTOMERS_OUT_RATE"
     ].max()
 
-    # df_dps_summ["date"] = pd.to_datetime(df_dps_summ["date"])
-
     # create grid and then left join (will fill in 0s)
     df_dps_summ = create_grid(
         dps_geo["PRIME_DPS_"].unique(), dates, "PRIME_DPS_", "date"

@@ -124,7 +124,7 @@ def compute_risk_increase(df, vars):
     df = df.copy()
     for var in vars:
         df[var + "_increase"] = (df["HVI_repl_q5"].astype(int) < 4) & (
-            df[var + "_q5"].isin([4, 5]).astype(int)
+            df[var + "_q5"].astype(int).isin([4, 5]).astype(int)
         )
     return df
 
@@ -165,7 +165,7 @@ def produce_risk_increase_map(gdf, vars, nyc_boros, titles):
         axes[1].set_axis_off()
 
         axes[0].set_title(titles[i])
-        axes[1].set_title("NTAs with increased risk scores of 4 or 5")
+        axes[1].set_title("Neighborhoods with increased risk scores of 4 or 5")
 
         nyc_boros.plot(ax=axes[0], facecolor="none", edgecolor="gray", lw=0.3)
         nyc_boros.plot(ax=axes[1], facecolor="none", edgecolor="gray", lw=0.3)
@@ -209,7 +209,7 @@ def nta_tract_comparison_map(gdf, tract_gdf, nyc_boros):
     axes[0].set_axis_off()
     axes[1].set_axis_off()
 
-    axes[0].set_title("NYC HVI at the NTA level")
+    axes[0].set_title("NYC HVI at the neighborhood level")
     axes[1].set_title("NYC HVI at the census tract level")
     nyc_boros.plot(ax=axes[0], facecolor="none", edgecolor="gray", lw=0.3)
     nyc_boros.plot(ax=axes[1], facecolor="none", edgecolor="gray", lw=0.3)
@@ -456,8 +456,8 @@ def scatter_plot_formatting(fig, ax):
         fontsize=14,
         bbox=dict(facecolor="white", pad=0, alpha=0.6),
     )
-    fig.supylabel("New Percentile Ranking")
-    fig.supxlabel("Original HVI prioritizations (percentile ranking)")
+    fig.supylabel("New percentile ranking")
+    fig.supxlabel("Original HVI prioritizations (percentile ranking, neighborhood-level)")
 
 
 def produce_facet_plot(df_hvi, df_tract_hvi, df_nri, id_vars, filename):
