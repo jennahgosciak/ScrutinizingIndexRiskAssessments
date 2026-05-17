@@ -115,7 +115,7 @@ def filter_data(df, date_var):
     return df
 
 
-def rank_311(df, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
+def rank_311(df, dec_gdf, rank_method, rank_var="count_pp_hydrant", date_var="week", date_freq="W-MON"):
     """Create number of hydrant complaints per 1000 people"""
 
     # merge to grid, will fill in missing values
@@ -134,10 +134,11 @@ def rank_311(df, dec_gdf, rank_method, date_var="week", date_freq="W-MON"):
     )
 
     assert gdf_311_summ["count_pp_hydrant"].notna().all()
+    assert (gdf_311_summ["totalpop_dec"] > 0).all() # check all are greater than 0
     assert np.isfinite(gdf_311_summ["count_pp_hydrant"]).all()  # check finite
 
-    gdf_311_summ["count_pp_hydrant_rank"], gdf_311_summ["count_pp_hydrant_q5"] = (
-        custom_qcut_function(gdf_311_summ["count_pp_hydrant"], method=rank_method)
+    gdf_311_summ[rank_var + "_rank"], gdf_311_summ[rank_var + "_q5"] = (
+        custom_qcut_function(gdf_311_summ[rank_var], method=rank_method)
     )
 
     # check there are no duplicates
