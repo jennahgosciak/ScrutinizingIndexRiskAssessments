@@ -1,4 +1,4 @@
-This is a replication repository for the paper "Scrutinizing Index-Based Risk Assessments: A Case Study in NYC Decision-making for Heat Emergency Management"
+This is a replication repository for the paper "Scrutinizing Index-Based Risk Assessments: A Case Study in NYC Decision-making for Heat Emergency Management" [(Paper link)](https://arxiv.org/abs/2605.17697)
 
 To create a conda environment with specific packages for this project, run:
 ```
